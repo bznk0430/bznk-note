@@ -273,9 +273,8 @@ async function makeNotePDF(fontBytes, blankBytes, amt){
   return await pdfDoc.save();
 }
 
-async function makeAuthPDF(fontBytes, authBytes, iss, rowIndex){
-  // 委託書：將 iss.name, iss.id 填入第 rowIndex 行
-  // 行 y 中間：444.0, 474.2, 504.4, 534.5, 564.7, 594.8, 625.0
+async function makeAuthPDF(fontBytes, authBytes, issList){
+  // 委託書：將多位發票人逐行填入（最多7行）
   const rowMidYs=[444.0,474.2,504.4,534.5,564.7,594.8,625.0];
   const {PDFDocument,rgb}=PDFLib;
   const pdfDoc=await PDFDocument.load(authBytes);
@@ -292,10 +291,11 @@ async function makeAuthPDF(fontBytes, authBytes, iss, rowIndex){
     page.drawText(text,{x:x0+(mw-tw)/2,y:H-yMid-(s/2)+2,size:s,font,color:rgb(0,0,0)});
   }
 
-  const yMid=rowMidYs[rowIndex]||rowMidYs[0];
-  // 欄位 x: 姓名 40~142, 身分證 142~252.9
-  dc(iss.name,    40,  142,   yMid);
-  dc(iss.id,      142, 252.9, yMid);
+  issList.slice(0,7).forEach((iss,i)=>{
+    const yMid=rowMidYs[i];
+    dc(iss.name, 40,  142,   yMid);
+    dc(iss.id,   142, 252.9, yMid);
+  });
 
   return await pdfDoc.save();
 }
@@ -357,11 +357,9 @@ async function generate(){
       });
       if(selected.length===0){showMsg("委託書：請至少勾選一位個人發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
 
-      for(let i=0;i<selected.length;i++){
-        const iss=selected[i];
-        const bytes=await makeAuthPDF(fontBytes,authBytes,iss,0); // 全部填在第1行
-        zip.file(`財產所得查調委託書_${iss.name}.pdf`,bytes);
-      }
+      const bytes=await makeAuthPDF(fontBytes,authBytes,selected);
+      const authNames=selected.map(iss=>iss.name).join("_");
+      zip.file(`財產所得查調委託書_${authNames}.pdf`,bytes);
     }
 
     // 下載
