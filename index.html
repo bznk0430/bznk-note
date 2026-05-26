@@ -134,7 +134,7 @@ function renderIssuers(){
 function validateField(i){
   const el=document.getElementById(`id_${i}`);
   if(!el)return;
-  el.classList.toggle("err", !!issuers[i].id && !validateId(issuers[i].id, issuers[i].type));
+  el.classList.toggle("err",!!issuers[i].id&&!validateId(issuers[i].id,issuers[i].type));
 }
 function updatePreview(){
   const amt=document.getElementById("amount").value;
@@ -160,7 +160,7 @@ async function generate(){
     if(iss.type==="公司"&&!iss.rep){showMsg(`發票人 ${i+1}：請填寫負責人姓名`,"err");return;}
   }
   const btn=document.getElementById("genBtn");
-  btn.disabled=true; btn.textContent="載入資源中…"; showMsg("","");
+  btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
   try{
     const [fontResp,blankResp]=await Promise.all([fetch("font.ttf"),fetch("blank.pdf")]);
     if(!fontResp.ok||!blankResp.ok)throw new Error("無法載入字型或範本，請確認網路連線");
@@ -173,22 +173,19 @@ async function generate(){
     const page=pdfDoc.getPages()[0];
     const H=page.getHeight();
 
-    // y 座標：PDF 從底部算，yBottom = yTop + lineHeight(12)
-    // drawText 的 y 對齊文字 bottom
-    function drawText(text,x,yTop,maxW,sz=10){
+    // 對齊欄位文字 baseline：yBottom = yTop + 12（字體12pt）
+    function dt(text,x,yTop,maxW,sz=10){
       if(!text)return;
       let s=sz;
       while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-      // 對齊到欄位文字的 baseline（bottom - descent）
-      const yBottom=yTop+12; // 原始文字 bottom
-      page.drawText(text,{x, y:H-yBottom+1, size:s, font, color:rgb(0,0,0)});
+      page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
     }
-    function drawCenter(text,x0,x1,yBase,sz=10){
+    function dc(text,x0,x1,yBase,sz=10){
       if(!text)return;
-      const maxW=x1-x0; let s=sz;
-      while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
+      const mw=x1-x0;let s=sz;
+      while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
       const tw=font.widthOfTextAtSize(text,s);
-      page.drawText(text,{x:x0+(maxW-tw)/2, y:H-yBase, size:s, font, color:rgb(0,0,0)});
+      page.drawText(text,{x:x0+(mw-tw)/2,y:H-yBase,size:s,font,color:rgb(0,0,0)});
     }
 
     const arr=[...issuers];
@@ -197,38 +194,63 @@ async function generate(){
     // ── 本票金額 8 格 ──
     const digits=String(parseInt(amt)).padStart(8,"0").slice(-8).split("");
     [148,184,220,256,292,328,364,400].forEach((x,i)=>{
-      const ch=CN[digits[i]]; const w=font.widthOfTextAtSize(ch,11);
-      page.drawText(ch,{x:x+(30-w)/2, y:H-96.3, size:11, font, color:rgb(0,0,0)});
+      const ch=CN[digits[i]];const w=font.widthOfTextAtSize(ch,11);
+      page.drawText(ch,{x:x+(30-w)/2,y:H-96.3,size:11,font,color:rgb(0,0,0)});
     });
 
     // ── 聲明書金額 ──
-    drawCenter(toChinese(amt),335.0,472.3,571.2);
+    dc(toChinese(amt),335.0,472.3,571.2);
 
-    // ── 本票發票人（yTop 對應原始文字頂端，bottom = yTop+12）──
-    // 發票人欄位 y 對應：name row top, id row top, addr row top
-    drawText(nd(arr[0]),125,170.1,200); drawText(arr[0].id,216,190.8,330); drawText(arr[0].address,120,211.7,430);
-    drawText(nd(arr[1]),125,252.9,148); drawText(arr[1].id,216,273.6,100); drawText(arr[1].address,120,294.5,148);
-    drawText(nd(arr[2]),381,252.9,138); drawText(arr[2].id,470,273.6,85);  drawText(arr[2].address,379,294.5,170);
-    drawText(nd(arr[3]),125,335.7,148); drawText(arr[3].id,216,356.4,100); drawText(arr[3].address,120,377.3,148);
-    drawText(nd(arr[4]),381,335.7,138); drawText(arr[4].id,470,356.4,85);  drawText(arr[4].address,379,377.3,170);
+    // ── 本票發票人 ──
+    // 精確位置（從 pdfplumber 量測）：
+    // iss1: name x=125, id x=219, addr x=128（冒號x1=124，+4=128）
+    // iss2(左): name x=125, id x=219, addr x=128；右欄: name x=381, id x=472, addr x=384
+    // iss3(左): 同iss2左；右欄同iss2右
+    // maxW: 左欄name=200, id=107(329-219-3=107), addr=198(329-128-3=198)
+    //        右欄name=138, id=91(563-472=91), addr=181(564-383=181)
+
+    // 發票人1（全寬，name/id/addr）
+    dt(nd(arr[0]),  125, 170.1, 200);
+    dt(arr[0].id,   219, 190.8, 107);
+    dt(arr[0].address, 128, 211.7, 198);
+
+    // 發票人2（左）
+    dt(nd(arr[1]),  125, 252.9, 148);
+    dt(arr[1].id,   219, 273.6, 107);
+    dt(arr[1].address, 128, 294.5, 198);
+
+    // 發票人3（右）
+    dt(nd(arr[2]),  381, 252.9, 138);
+    dt(arr[2].id,   472, 273.6, 91);
+    dt(arr[2].address, 384, 294.5, 181);
+
+    // 發票人4（左）
+    dt(nd(arr[3]),  125, 335.7, 148);
+    dt(arr[3].id,   219, 356.4, 107);
+    dt(arr[3].address, 128, 377.3, 198);
+
+    // 發票人5（右）
+    dt(nd(arr[4]),  381, 335.7, 138);
+    dt(arr[4].id,   472, 356.4, 91);
+    dt(arr[4].address, 384, 377.3, 181);
 
     // ── 聲明書立書人 ──
-    drawCenter(nd(arr[0]),122.9,364.1,684.0);
-    drawCenter(nd(arr[1]),125.5,276.7,725.5); drawCenter(nd(arr[2]),397.9,549.4,725.5);
-    drawCenter(nd(arr[3]),125.5,276.7,766.8); drawCenter(nd(arr[4]),397.9,549.4,766.8);
+    dc(nd(arr[0]),122.9,364.1,684.0);
+    dc(nd(arr[1]),125.5,276.7,725.5); dc(nd(arr[2]),397.9,549.4,725.5);
+    dc(nd(arr[3]),125.5,276.7,766.8); dc(nd(arr[4]),397.9,549.4,766.8);
 
     const pdfBytes=await pdfDoc.save();
     const blob=new Blob([pdfBytes],{type:"application/pdf"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
-    a.href=url; a.download=`本票_${arr[0].name}_${parseInt(amt).toLocaleString()}元.pdf`;
-    a.click(); URL.revokeObjectURL(url);
+    a.href=url;a.download=`本票_${arr[0].name}_${parseInt(amt).toLocaleString()}元.pdf`;
+    a.click();URL.revokeObjectURL(url);
     showMsg("✓ 本票 PDF 已下載成功","ok");
   }catch(e){
     showMsg("產生失敗："+e.message,"err");
     console.error(e);
   }finally{
-    btn.disabled=false; btn.textContent="產生並下載本票 PDF";
+    btn.disabled=false;btn.textContent="產生並下載本票 PDF";
   }
 }
 addIssuer();
