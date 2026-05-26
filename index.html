@@ -11,7 +11,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 h1{font-size:18px;font-weight:600;color:#1a1a18}
 .sub{font-size:13px;color:#666;margin-top:2px}
 .card{background:#fff;border:0.5px solid rgba(0,0,0,0.12);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px}
-.card-title{font-size:13px;font-weight:600;color:#444}
+.card-title{font-size:13px;font-weight:600;color:#444;margin-bottom:2px}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px}
 .field label{font-size:11px;color:#666;font-weight:500}
@@ -25,23 +25,36 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
 .rm-btn:hover{color:#e55}
 .add-btn{background:none;border:0.5px dashed rgba(0,0,0,0.2);border-radius:8px;padding:9px;font-size:13px;color:#777;cursor:pointer;width:100%}
 .add-btn:hover{background:#f5f4f0}
+.hint{font-size:11px;color:#999;margin-top:2px}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;margin-left:6px}
+.badge-co{background:#e6f1fb;color:#0c447c}
+.badge-pe{background:#e1f5ee;color:#085041}
+.preview-bar{background:#f9f8f5;border-radius:8px;padding:10px 14px;font-size:12px;color:#666;display:flex;gap:16px;flex-wrap:wrap}
+.preview-bar strong{color:#1a1a18}
+/* 附件區塊 */
+.attach-item{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:0.5px solid rgba(0,0,0,0.08);border-radius:10px;background:#fafaf8}
+.attach-header{display:flex;align-items:center;gap:10px;cursor:pointer}
+.attach-header input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#1a1a18}
+.attach-label{font-size:13px;font-weight:500;color:#1a1a18;flex:1}
+.attach-body{display:none;flex-direction:column;gap:8px;padding-top:4px}
+.attach-body.open{display:flex}
+.issuer-check-list{display:flex;flex-wrap:wrap;gap:8px}
+.issuer-check{display:flex;align-items:center;gap:5px;font-size:12px;color:#444;cursor:pointer}
+.issuer-check input{width:14px;height:14px;accent-color:#1a1a18;cursor:pointer}
+/* 產生按鈕 */
 .gen-btn{background:#1a1a18;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:500;cursor:pointer;width:100%;transition:opacity 0.15s}
 .gen-btn:hover:not(:disabled){opacity:0.85}
 .gen-btn:disabled{background:#ccc;cursor:not-allowed}
 .msg{font-size:13px;padding:10px 14px;border-radius:8px;text-align:center}
 .msg-err{background:#fce8e8;color:#a32d2d}
 .msg-ok{background:#e1f5ee;color:#085041}
-.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;margin-left:6px}
-.badge-co{background:#e6f1fb;color:#0c447c}
-.badge-pe{background:#e1f5ee;color:#085041}
-.preview-bar{background:#f9f8f5;border-radius:8px;padding:10px 14px;font-size:12px;color:#666;display:flex;gap:16px;flex-wrap:wrap}
-.preview-bar strong{color:#1a1a18}
-.hint{font-size:11px;color:#999;margin-top:2px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div><h1>本票產生器</h1><div class="sub">台灣聯合金融科技 · BZNK 平台</div></div>
+
+  <!-- 金額 -->
   <div class="card">
     <div class="card-title">票面金額</div>
     <div class="row">
@@ -49,19 +62,50 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
       <div class="field" style="flex:1;min-width:110px"><label>大寫預覽</label><input id="amtCN" readonly></div>
     </div>
   </div>
+
+  <!-- 發票人 -->
   <div class="card">
     <div class="card-title">發票人資料（最多5位）</div>
     <div id="issuers"></div>
     <button class="add-btn" onclick="addIssuer()">＋ 新增發票人</button>
   </div>
+
+  <!-- 附件 -->
+  <div class="card">
+    <div class="card-title">附件文件</div>
+    <div class="attach-item" id="attach-note">
+      <div class="attach-header" onclick="toggleAttach('note')">
+        <input type="checkbox" id="chk-note" checked onclick="event.stopPropagation();toggleAttach('note')">
+        <span class="attach-label">📄 額度本票</span>
+      </div>
+      <div class="attach-body open" id="body-note">
+        <div style="font-size:12px;color:#888">所有發票人資料自動帶入，無需另外選擇。</div>
+      </div>
+    </div>
+    <div class="attach-item" id="attach-auth">
+      <div class="attach-header" onclick="toggleAttach('auth')">
+        <input type="checkbox" id="chk-auth" onclick="event.stopPropagation();toggleAttach('auth')">
+        <span class="attach-label">📄 財產所得查調委託書</span>
+      </div>
+      <div class="attach-body" id="body-auth">
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人（個人）：</div>
+        <div class="issuer-check-list" id="auth-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">每位發票人各產生一份，姓名及身分證字號自動填入委託人欄位。</div>
+      </div>
+    </div>
+  </div>
+
   <div id="previewBar" class="preview-bar" style="display:none"></div>
   <div id="msgBox"></div>
-  <button class="gen-btn" id="genBtn" onclick="generate()">產生並下載本票 PDF</button>
+  <button class="gen-btn" id="genBtn" onclick="generate()">產生並下載文件</button>
 </div>
+
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 const CN={"0":"零","1":"壹","2":"貳","3":"參","4":"肆","5":"伍","6":"陸","7":"柒","8":"捌","9":"玖"};
+
 function toChinese(s){
   try{
     const n=parseInt(String(s).replace(/,/g,""));
@@ -75,19 +119,24 @@ function toChinese(s){
     return r.replace(/零+$/,"");
   }catch{return "";}
 }
+
 function validateId(val,type){
   return type==="公司"?/^\d{8}$/.test(val.trim()):/^[A-Za-z]\d{9}$/.test(val.trim());
 }
+
 let issuers=[];
+
 function addIssuer(){
   if(issuers.length>=5){showMsg("最多只能有5位發票人","err");return;}
   issuers.push({type:"個人",name:"",id:"",address:"",rep:""});
   renderIssuers();
+  renderAuthIssuerList();
 }
-function removeIssuer(i){issuers.splice(i,1);renderIssuers();updatePreview();}
-function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type")renderIssuers();updatePreview();}
+function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();updatePreview();}
+function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();}updatePreview();}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
 function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
+
 function renderIssuers(){
   const wrap=document.getElementById("issuers");
   wrap.innerHTML="";
@@ -131,11 +180,39 @@ function renderIssuers(){
     wrap.appendChild(div);
   });
 }
+
+function renderAuthIssuerList(){
+  const list=document.getElementById("auth-issuer-list");
+  if(!list)return;
+  list.innerHTML="";
+  const individuals=issuers.filter(iss=>iss.type==="個人");
+  if(individuals.length===0){
+    list.innerHTML='<div style="font-size:12px;color:#aaa">尚無個人發票人</div>';
+    return;
+  }
+  individuals.forEach((iss,i)=>{
+    const realIdx=issuers.indexOf(iss);
+    const lbl=document.createElement("label");
+    lbl.className="issuer-check";
+    lbl.innerHTML=`<input type="checkbox" id="auth-chk-${realIdx}" checked> 發票人${realIdx+1}${iss.name?" ("+iss.name+")":""}`;
+    list.appendChild(lbl);
+  });
+}
+
+function toggleAttach(id){
+  const chk=document.getElementById(`chk-${id}`);
+  const body=document.getElementById(`body-${id}`);
+  // 若點的是 header，切換 checkbox
+  if(!chk.matches(':focus'))chk.checked=!chk.checked;
+  body.classList.toggle("open",chk.checked);
+}
+
 function validateField(i){
   const el=document.getElementById(`id_${i}`);
   if(!el)return;
   el.classList.toggle("err",!!issuers[i].id&&!validateId(issuers[i].id,issuers[i].type));
 }
+
 function updatePreview(){
   const amt=document.getElementById("amount").value;
   document.getElementById("amtCN").value=toChinese(amt)||"";
@@ -144,9 +221,87 @@ function updatePreview(){
   bar.style.display="flex";
   bar.innerHTML=`<span>金額：<strong>NT$ ${parseInt(amt).toLocaleString()}</strong></span><span>大寫：<strong>${toChinese(amt)||"—"}</strong></span><span>發票人：<strong>${issuers.length} 位</strong></span>`;
 }
+
 function showMsg(text,type){
   document.getElementById("msgBox").innerHTML=text?`<div class="msg msg-${type}">${text}</div>`:"";
 }
+
+// ── PDF 產生函式 ──────────────────────────────────────────────────────────────
+
+async function makeNotePDF(fontBytes, blankBytes, amt){
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(blankBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+
+  function dt(text,x,yTop,maxW,sz=10){
+    if(!text)return;
+    let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
+    page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
+  }
+  function dc(text,x0,x1,yBase,sz=10){
+    if(!text)return;
+    const mw=x1-x0;let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
+    const tw=font.widthOfTextAtSize(text,s);
+    page.drawText(text,{x:x0+(mw-tw)/2,y:H-yBase,size:s,font,color:rgb(0,0,0)});
+  }
+
+  const arr=[...issuers];
+  while(arr.length<5)arr.push({type:"個人",name:"",id:"",address:"",rep:""});
+
+  const digits=String(parseInt(amt)).padStart(8,"0").slice(-8).split("");
+  [148,184,220,256,292,328,364,400].forEach((x,i)=>{
+    const ch=CN[digits[i]];const w=font.widthOfTextAtSize(ch,11);
+    page.drawText(ch,{x:x+(30-w)/2,y:H-96.3,size:11,font,color:rgb(0,0,0)});
+  });
+  dc(toChinese(amt),335.0,472.3,571.2);
+
+  dt(nd(arr[0]),125,170.1,200); dt(arr[0].id,219,190.8,107); dt(arr[0].address,128,211.7,198);
+  dt(nd(arr[1]),125,252.9,148); dt(arr[1].id,219,273.6,107); dt(arr[1].address,128,294.5,198);
+  dt(nd(arr[2]),381,252.9,138); dt(arr[2].id,472,273.6,91);  dt(arr[2].address,384,294.5,181);
+  dt(nd(arr[3]),125,335.7,148); dt(arr[3].id,219,356.4,107); dt(arr[3].address,128,377.3,198);
+  dt(nd(arr[4]),381,335.7,138); dt(arr[4].id,472,356.4,91);  dt(arr[4].address,384,377.3,181);
+
+  dc(nd(arr[0]),122.9,364.1,684.0);
+  dc(nd(arr[1]),125.5,276.7,725.5); dc(nd(arr[2]),397.9,549.4,725.5);
+  dc(nd(arr[3]),125.5,276.7,766.8); dc(nd(arr[4]),397.9,549.4,766.8);
+
+  return await pdfDoc.save();
+}
+
+async function makeAuthPDF(fontBytes, authBytes, iss, rowIndex){
+  // 委託書：將 iss.name, iss.id 填入第 rowIndex 行
+  // 行 y 中間：444.0, 474.2, 504.4, 534.5, 564.7, 594.8, 625.0
+  const rowMidYs=[444.0,474.2,504.4,534.5,564.7,594.8,625.0];
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(authBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+
+  function dc(text,x0,x1,yMid,sz=10){
+    if(!text)return;
+    const mw=x1-x0;let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
+    const tw=font.widthOfTextAtSize(text,s);
+    page.drawText(text,{x:x0+(mw-tw)/2,y:H-yMid-(s/2)+2,size:s,font,color:rgb(0,0,0)});
+  }
+
+  const yMid=rowMidYs[rowIndex]||rowMidYs[0];
+  // 欄位 x: 姓名 40~142, 身分證 142~252.9
+  dc(iss.name,    40,  142,   yMid);
+  dc(iss.id,      142, 252.9, yMid);
+
+  return await pdfDoc.save();
+}
+
+// ── 主產生流程 ────────────────────────────────────────────────────────────────
+
 async function generate(){
   const amt=document.getElementById("amount").value;
   if(!amt||parseInt(amt)<=0){showMsg("請輸入金額","err");return;}
@@ -159,100 +314,83 @@ async function generate(){
     if(!iss.address){showMsg(`發票人 ${i+1}：請填寫地址`,"err");return;}
     if(iss.type==="公司"&&!iss.rep){showMsg(`發票人 ${i+1}：請填寫負責人姓名`,"err");return;}
   }
+
+  const doNote=document.getElementById("chk-note").checked;
+  const doAuth=document.getElementById("chk-auth").checked;
+  if(!doNote&&!doAuth){showMsg("請至少勾選一份文件","err");return;}
+
   const btn=document.getElementById("genBtn");
   btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
+
   try{
-    const [fontResp,blankResp]=await Promise.all([fetch("font.ttf"),fetch("blank.pdf")]);
-    if(!fontResp.ok||!blankResp.ok)throw new Error("無法載入字型或範本，請確認網路連線");
-    const [fontBytes,blankBytes]=await Promise.all([fontResp.arrayBuffer(),blankResp.arrayBuffer()]);
+    // 決定需要哪些資源
+    const fetches=[fetch("font.ttf")];
+    if(doNote)fetches.push(fetch("blank.pdf"));
+    if(doAuth)fetches.push(fetch("auth.pdf"));
+    const resps=await Promise.all(fetches);
+    if(resps.some(r=>!r.ok))throw new Error("無法載入資源，請確認網路連線");
+    const bufs=await Promise.all(resps.map(r=>r.arrayBuffer()));
+
     btn.textContent="產生中…";
-    const {PDFDocument,rgb}=PDFLib;
-    const pdfDoc=await PDFDocument.load(blankBytes);
-    pdfDoc.registerFontkit(fontkit);
-    const font=await pdfDoc.embedFont(fontBytes);
-    const page=pdfDoc.getPages()[0];
-    const H=page.getHeight();
+    let idx=0;
+    const fontBytes=bufs[idx++];
+    const blankBytes=doNote?bufs[idx++]:null;
+    const authBytes=doAuth?bufs[idx++]:null;
 
-    // 對齊欄位文字 baseline：yBottom = yTop + 12（字體12pt）
-    function dt(text,x,yTop,maxW,sz=10){
-      if(!text)return;
-      let s=sz;
-      while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-      page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
-    }
-    function dc(text,x0,x1,yBase,sz=10){
-      if(!text)return;
-      const mw=x1-x0;let s=sz;
-      while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
-      const tw=font.widthOfTextAtSize(text,s);
-      page.drawText(text,{x:x0+(mw-tw)/2,y:H-yBase,size:s,font,color:rgb(0,0,0)});
+    const zip=new JSZip();
+    const namePrefix=issuers[0]?.name||"未命名";
+    const amtStr=parseInt(amt).toLocaleString();
+
+    // 本票
+    if(doNote){
+      const bytes=await makeNotePDF(fontBytes,blankBytes,amt);
+      zip.file(`本票_${namePrefix}_${amtStr}元.pdf`,bytes);
     }
 
-    const arr=[...issuers];
-    while(arr.length<5)arr.push({type:"個人",name:"",id:"",address:"",rep:""});
+    // 委託書（每位勾選的個人一份）
+    if(doAuth){
+      const individuals=issuers.filter(iss=>iss.type==="個人");
+      const selected=individuals.filter((iss,i)=>{
+        const realIdx=issuers.indexOf(iss);
+        const chk=document.getElementById(`auth-chk-${realIdx}`);
+        return chk&&chk.checked;
+      });
+      if(selected.length===0){showMsg("委託書：請至少勾選一位個人發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
 
-    // ── 本票金額 8 格 ──
-    const digits=String(parseInt(amt)).padStart(8,"0").slice(-8).split("");
-    [148,184,220,256,292,328,364,400].forEach((x,i)=>{
-      const ch=CN[digits[i]];const w=font.widthOfTextAtSize(ch,11);
-      page.drawText(ch,{x:x+(30-w)/2,y:H-96.3,size:11,font,color:rgb(0,0,0)});
-    });
+      for(let i=0;i<selected.length;i++){
+        const iss=selected[i];
+        const bytes=await makeAuthPDF(fontBytes,authBytes,iss,0); // 全部填在第1行
+        zip.file(`財產所得查調委託書_${iss.name}.pdf`,bytes);
+      }
+    }
 
-    // ── 聲明書金額 ──
-    dc(toChinese(amt),335.0,472.3,571.2);
+    // 下載
+    const files=Object.keys(zip.files);
+    if(files.length===1){
+      // 只有一份，直接下載
+      const fname=files[0];
+      const bytes=await zip.files[fname].async("uint8array");
+      const blob=new Blob([bytes],{type:"application/pdf"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
+    } else {
+      // 多份，打包 ZIP
+      const blob=await zip.generateAsync({type:"blob"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.download=`BZNK文件_${namePrefix}_${amtStr}元.zip`;a.click();URL.revokeObjectURL(url);
+    }
 
-    // ── 本票發票人 ──
-    // 精確位置（從 pdfplumber 量測）：
-    // iss1: name x=125, id x=219, addr x=128（冒號x1=124，+4=128）
-    // iss2(左): name x=125, id x=219, addr x=128；右欄: name x=381, id x=472, addr x=384
-    // iss3(左): 同iss2左；右欄同iss2右
-    // maxW: 左欄name=200, id=107(329-219-3=107), addr=198(329-128-3=198)
-    //        右欄name=138, id=91(563-472=91), addr=181(564-383=181)
-
-    // 發票人1（全寬，name/id/addr）
-    dt(nd(arr[0]),  125, 170.1, 200);
-    dt(arr[0].id,   219, 190.8, 107);
-    dt(arr[0].address, 128, 211.7, 198);
-
-    // 發票人2（左）
-    dt(nd(arr[1]),  125, 252.9, 148);
-    dt(arr[1].id,   219, 273.6, 107);
-    dt(arr[1].address, 128, 294.5, 198);
-
-    // 發票人3（右）
-    dt(nd(arr[2]),  381, 252.9, 138);
-    dt(arr[2].id,   472, 273.6, 91);
-    dt(arr[2].address, 384, 294.5, 181);
-
-    // 發票人4（左）
-    dt(nd(arr[3]),  125, 335.7, 148);
-    dt(arr[3].id,   219, 356.4, 107);
-    dt(arr[3].address, 128, 377.3, 198);
-
-    // 發票人5（右）
-    dt(nd(arr[4]),  381, 335.7, 138);
-    dt(arr[4].id,   472, 356.4, 91);
-    dt(arr[4].address, 384, 377.3, 181);
-
-    // ── 聲明書立書人 ──
-    dc(nd(arr[0]),122.9,364.1,684.0);
-    dc(nd(arr[1]),125.5,276.7,725.5); dc(nd(arr[2]),397.9,549.4,725.5);
-    dc(nd(arr[3]),125.5,276.7,766.8); dc(nd(arr[4]),397.9,549.4,766.8);
-
-    const pdfBytes=await pdfDoc.save();
-    const blob=new Blob([pdfBytes],{type:"application/pdf"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.download=`本票_${arr[0].name}_${parseInt(amt).toLocaleString()}元.pdf`;
-    a.click();URL.revokeObjectURL(url);
-    showMsg("✓ 本票 PDF 已下載成功","ok");
+    showMsg(`✓ 已下載 ${files.length} 份文件`,"ok");
   }catch(e){
     showMsg("產生失敗："+e.message,"err");
     console.error(e);
   }finally{
-    btn.disabled=false;btn.textContent="產生並下載本票 PDF";
+    btn.disabled=false;btn.textContent="產生並下載文件";
   }
 }
+
 addIssuer();
 </script>
 </body>
