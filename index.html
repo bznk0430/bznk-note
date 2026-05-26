@@ -90,7 +90,27 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
       <div class="attach-body" id="body-auth">
         <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人（個人）：</div>
         <div class="issuer-check-list" id="auth-issuer-list"></div>
-        <div style="font-size:11px;color:#aaa">每位發票人各產生一份，姓名及身分證字號自動填入委託人欄位。</div>
+        <div style="font-size:11px;color:#aaa">所有勾選的個人發票人填入同一份，最多7位。</div>
+      </div>
+    </div>
+    <div class="attach-item" id="attach-mort">
+      <div class="attach-header" onclick="toggleAttach('mort')">
+        <input type="checkbox" id="chk-mort" onclick="event.stopPropagation();toggleAttach('mort')">
+        <span class="attach-label">📄 抵押權設定種類約定書</span>
+      </div>
+      <div class="attach-body" id="body-mort">
+        <div class="row" style="margin-bottom:4px">
+          <div class="field">
+            <label>版本</label>
+            <select id="mort-version">
+              <option value="tw">台灣聯合版</option>
+              <option value="hj">合經版</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人：</div>
+        <div class="issuer-check-list" id="mort-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">每位發票人各產生一份（擔保物提供人、統編/身分證、地址）。</div>
       </div>
     </div>
   </div>
@@ -131,9 +151,11 @@ function addIssuer(){
   issuers.push({type:"個人",name:"",id:"",address:"",rep:""});
   renderIssuers();
   renderAuthIssuerList();
+  renderMortIssuerList();
+  updatePreview();
 }
-function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();updatePreview();}
-function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();}updatePreview();}
+function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();updatePreview();}
+function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();}updatePreview();}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
 function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
 
@@ -181,28 +203,35 @@ function renderIssuers(){
   });
 }
 
-function renderAuthIssuerList(){
-  const list=document.getElementById("auth-issuer-list");
+function renderIssuerCheckList(listId, chkPrefix, filterFn){
+  const list=document.getElementById(listId);
   if(!list)return;
   list.innerHTML="";
-  const individuals=issuers.filter(iss=>iss.type==="個人");
-  if(individuals.length===0){
-    list.innerHTML='<div style="font-size:12px;color:#aaa">尚無個人發票人</div>';
+  const filtered=issuers.filter(filterFn);
+  if(filtered.length===0){
+    list.innerHTML='<div style="font-size:12px;color:#aaa">尚無符合條件的發票人</div>';
     return;
   }
-  individuals.forEach((iss,i)=>{
+  filtered.forEach(iss=>{
     const realIdx=issuers.indexOf(iss);
     const lbl=document.createElement("label");
     lbl.className="issuer-check";
-    lbl.innerHTML=`<input type="checkbox" id="auth-chk-${realIdx}" checked> 發票人${realIdx+1}${iss.name?" ("+iss.name+")":""}`;
+    lbl.innerHTML=`<input type="checkbox" id="${chkPrefix}-${realIdx}" checked> 發票人${realIdx+1}${iss.name?" ("+iss.name+")":""}`;
     list.appendChild(lbl);
   });
+}
+
+function renderAuthIssuerList(){
+  renderIssuerCheckList("auth-issuer-list","auth-chk",iss=>iss.type==="個人");
+}
+
+function renderMortIssuerList(){
+  renderIssuerCheckList("mort-issuer-list","mort-chk",()=>true);
 }
 
 function toggleAttach(id){
   const chk=document.getElementById(`chk-${id}`);
   const body=document.getElementById(`body-${id}`);
-  // 若點的是 header，切換 checkbox
   if(!chk.matches(':focus'))chk.checked=!chk.checked;
   body.classList.toggle("open",chk.checked);
 }
@@ -300,6 +329,65 @@ async function makeAuthPDF(fontBytes, authBytes, issList){
   return await pdfDoc.save();
 }
 
+async function makeMortPDF(fontBytes, mortBytes, iss){
+  // 抵押權設定種類約定書：填入擔保物提供人、統編/身分證、住址
+  // 台灣聯合版 y: 提供人=322.9, 統編=382.9, 住址=402.8
+  // 合經版     y: 提供人=383.4, 統編=443.4, 住址=463.3
+  // x: 提供人冒號後=344.5, 統編冒號後=316.6, 住址冒號後=313.3
+  // 右邊界=541, 字體14pt
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(mortBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+
+  function dt(text,x,yTop,maxW,sz=12){
+    if(!text)return;
+    let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
+    page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});
+  }
+
+  // 判斷版本（由 y 位置判斷）
+  // 台灣聯合版: 提供人 y≈322.9；合經版: 提供人 y≈383.4
+  // 這裡用傳入的 PDF bytes 本身，不需要判斷，座標已在建立時決定
+  const maxW = 541 - 344.5; // ~196pt
+
+  // 從 PDF 文字判斷版本（提供人標籤的 y）
+  // 我們直接用傳入 mortBytes 對應的座標
+  // 台灣聯合版座標
+  const yProvider = 322.9, yId = 382.9, yAddr = 402.8;
+
+  dt(iss.name,   344.5, yProvider, 541-344.5);
+  dt(iss.id,     316.6, yId,       541-316.6);
+  dt(iss.address,313.3, yAddr,     541-313.3);
+
+  return await pdfDoc.save();
+}
+
+async function makeMortPDFHJ(fontBytes, mortBytes, iss){
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(mortBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+
+  function dt(text,x,yTop,maxW,sz=12){
+    if(!text)return;
+    let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
+    page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});
+  }
+
+  dt(iss.name,   344.5, 383.4, 541-344.5);
+  dt(iss.id,     316.6, 443.4, 541-316.6);
+  dt(iss.address,313.3, 463.3, 541-313.3);
+
+  return await pdfDoc.save();
+}
+
 // ── 主產生流程 ────────────────────────────────────────────────────────────────
 
 async function generate(){
@@ -360,6 +448,23 @@ async function generate(){
       const bytes=await makeAuthPDF(fontBytes,authBytes,selected);
       const authNames=selected.map(iss=>iss.name).join("_");
       zip.file(`財產所得查調委託書_${authNames}.pdf`,bytes);
+    }
+
+    // 抵押權設定種類約定書
+    if(doMort){
+      const mortVer=document.getElementById("mort-version").value;
+      const mortSelected=issuers.filter((iss,i)=>{
+        const chk=document.getElementById(`mort-chk-${i}`);
+        return chk&&chk.checked;
+      });
+      if(mortSelected.length===0){showMsg("抵押權約定書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      for(const iss of mortSelected){
+        const bytes=mortVer==="tw"
+          ?await makeMortPDF(fontBytes,mortBytes,iss)
+          :await makeMortPDFHJ(fontBytes,mortBytes,iss);
+        const vLabel=mortVer==="tw"?"台灣聯合":"合經";
+        zip.file(`抵押權設定種類約定書_${vLabel}_${iss.name}.pdf`,bytes);
+      }
     }
 
     // 下載
