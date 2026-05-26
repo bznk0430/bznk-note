@@ -405,16 +405,18 @@ async function generate(){
 
   const doNote=document.getElementById("chk-note").checked;
   const doAuth=document.getElementById("chk-auth").checked;
-  if(!doNote&&!doAuth){showMsg("請至少勾選一份文件","err");return;}
+  const doMort=document.getElementById("chk-mort").checked;
+  if(!doNote&&!doAuth&&!doMort){showMsg("請至少勾選一份文件","err");return;}
 
   const btn=document.getElementById("genBtn");
   btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
 
   try{
-    // 決定需要哪些資源
+    const mortVer=document.getElementById("mort-version")?.value||"tw";
     const fetches=[fetch("font.ttf")];
     if(doNote)fetches.push(fetch("blank.pdf"));
     if(doAuth)fetches.push(fetch("auth.pdf"));
+    if(doMort)fetches.push(fetch(mortVer==="tw"?"mortgage_tw.pdf":"mortgage_hj.pdf"));
     const resps=await Promise.all(fetches);
     if(resps.some(r=>!r.ok))throw new Error("無法載入資源，請確認網路連線");
     const bufs=await Promise.all(resps.map(r=>r.arrayBuffer()));
@@ -424,6 +426,7 @@ async function generate(){
     const fontBytes=bufs[idx++];
     const blankBytes=doNote?bufs[idx++]:null;
     const authBytes=doAuth?bufs[idx++]:null;
+    const mortBytes=doMort?bufs[idx++]:null;
 
     const zip=new JSZip();
     const namePrefix=issuers[0]?.name||"未命名";
