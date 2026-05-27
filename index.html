@@ -116,6 +116,16 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
             <input id="decl-case" type="text" placeholder="案件編號">
           </div>
         </div>
+        <div class="row">
+          <div class="field">
+            <label>戶名</label>
+            <input id="decl-holder" type="text" placeholder="帳戶戶名">
+          </div>
+          <div class="field">
+            <label>帳號</label>
+            <input id="decl-account" type="text" placeholder="銀行帳號">
+          </div>
+        </div>
         <div style="font-size:12px;color:#666;margin-bottom:2px">選擇公司發票人：</div>
         <div class="issuer-check-list" id="decl-issuer-list"></div>
         <div style="font-size:11px;color:#aaa">帶入公司名稱、統編、負責人；金額自動帶入中文大寫。</div>
@@ -421,7 +431,7 @@ async function makeMortPDFHJ(fontBytes, mortBytes, iss){
   return await pdfDoc.save();
 }
 
-async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, amtChinese){
+async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, amtChinese, holder, account){
   // 聲明書欄位位置（字體 20pt）：
   // 日期：年前 x=136~156, 月前 x=177~192, 日前 x=213~228, y=124
   // 案件編號：x=79~216, y=154
@@ -467,6 +477,10 @@ async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, 
   dt(iss.name, 99, 560.8, 559.4-99);   // 公司名稱，右邊界~559
   dt(iss.id,   99, 598.7, 559.4-99);   // 統編
   dt(iss.rep,  119, 636.7, 559.4-119); // 負責人
+
+  // 戶名、帳號（x=89.4~559, y=311.7 / 341.4）
+  dt(holder,  89.4, 311.7, 559.4-89.4);
+  dt(account, 89.4, 341.4, 559.4-89.4);
 
   return await pdfDoc.save();
 }
@@ -569,8 +583,10 @@ async function generate(){
         return chk&&chk.checked;
       });
       if(declSelected.length===0){showMsg("聲明書：請至少勾選一位公司發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const holder=document.getElementById("decl-holder").value||"";
+      const account=document.getElementById("decl-account").value||"";
       for(const iss of declSelected){
-        const bytes=await makeDeclPDF(fontBytes,declBytes,iss,caseNo,year,month,day,amtCN);
+        const bytes=await makeDeclPDF(fontBytes,declBytes,iss,caseNo,year,month,day,amtCN,holder,account);
         zip.file(`撥款個人聲明書_${iss.name}.pdf`,bytes);
       }
     }
