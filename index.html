@@ -93,6 +93,34 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
         <div style="font-size:11px;color:#aaa">所有勾選的個人發票人填入同一份，最多7位。</div>
       </div>
     </div>
+    <div class="attach-item" id="attach-decl">
+      <div class="attach-header" onclick="toggleAttach('decl')">
+        <input type="checkbox" id="chk-decl" onclick="event.stopPropagation();toggleAttach('decl')">
+        <span class="attach-label">📄 撥款個人聲明書</span>
+      </div>
+      <div class="attach-body" id="body-decl">
+        <div class="row">
+          <div class="field">
+            <label>借貸日期（民國）</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input id="decl-year" type="text" placeholder="年" style="width:60px">
+              <span style="font-size:13px">年</span>
+              <input id="decl-month" type="text" placeholder="月" style="width:44px">
+              <span style="font-size:13px">月</span>
+              <input id="decl-day" type="text" placeholder="日" style="width:44px">
+              <span style="font-size:13px">日</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>案件編號</label>
+            <input id="decl-case" type="text" placeholder="案件編號">
+          </div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇公司發票人：</div>
+        <div class="issuer-check-list" id="decl-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">帶入公司名稱、統編、負責人；金額自動帶入中文大寫。</div>
+      </div>
+    </div>
     <div class="attach-item" id="attach-mort">
       <div class="attach-header" onclick="toggleAttach('mort')">
         <input type="checkbox" id="chk-mort" onclick="event.stopPropagation();toggleAttach('mort')">
@@ -152,10 +180,11 @@ function addIssuer(){
   renderIssuers();
   renderAuthIssuerList();
   renderMortIssuerList();
+  renderDeclIssuerList();
   updatePreview();
 }
-function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();updatePreview();}
-function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();}updatePreview();}
+function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();updatePreview();}
+function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();}updatePreview();}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
 function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
 
@@ -227,6 +256,10 @@ function renderAuthIssuerList(){
 
 function renderMortIssuerList(){
   renderIssuerCheckList("mort-issuer-list","mort-chk",()=>true);
+}
+
+function renderDeclIssuerList(){
+  renderIssuerCheckList("decl-issuer-list","decl-chk",iss=>iss.type==="公司");
 }
 
 function toggleAttach(id){
@@ -388,6 +421,56 @@ async function makeMortPDFHJ(fontBytes, mortBytes, iss){
   return await pdfDoc.save();
 }
 
+async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, amtChinese){
+  // 聲明書欄位位置（字體 20pt）：
+  // 日期：年前 x=136~156, 月前 x=177~192, 日前 x=213~228, y=124
+  // 案件編號：x=79~216, y=154
+  // 金額大寫：x=336~444, y=154
+  // 公司名稱：冒號後 x=99, y=560.8
+  // 統編：冒號後 x=99, y=598.7
+  // 負責人：冒號後 x=119, y=636.7
+
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(declBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+
+  const SZ=14; // 填入字體稍小於原始20pt，避免超出
+  function dt(text,x,yTop,maxW,sz=SZ){
+    if(!text)return;
+    let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
+    page.drawText(text,{x,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});
+  }
+  function dc(text,x0,x1,yTop,sz=SZ){
+    if(!text)return;
+    const mw=x1-x0;let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
+    const tw=font.widthOfTextAtSize(text,s);
+    page.drawText(text,{x:x0+(mw-tw)/2,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});
+  }
+
+  // 日期（置中在年月日格子中）
+  dc(year,  136, 156.7, 124);
+  dc(month, 177, 192.3, 124);
+  dc(day,   213, 227.9, 124);
+
+  // 案件編號（x=79~216）
+  dt(caseNo, 79, 154, 216-79);
+
+  // 金額大寫（x=336~444，「元」前面的空間）
+  dt(amtChinese, 336, 154, 444-336-5);
+
+  // 公司資訊
+  dt(iss.name, 99, 560.8, 559.4-99);   // 公司名稱，右邊界~559
+  dt(iss.id,   99, 598.7, 559.4-99);   // 統編
+  dt(iss.rep,  119, 636.7, 559.4-119); // 負責人
+
+  return await pdfDoc.save();
+}
+
 // ── 主產生流程 ────────────────────────────────────────────────────────────────
 
 async function generate(){
@@ -406,7 +489,8 @@ async function generate(){
   const doNote=document.getElementById("chk-note").checked;
   const doAuth=document.getElementById("chk-auth").checked;
   const doMort=document.getElementById("chk-mort").checked;
-  if(!doNote&&!doAuth&&!doMort){showMsg("請至少勾選一份文件","err");return;}
+  const doDecl=document.getElementById("chk-decl").checked;
+  if(!doNote&&!doAuth&&!doMort&&!doDecl){showMsg("請至少勾選一份文件","err");return;}
 
   const btn=document.getElementById("genBtn");
   btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
@@ -417,6 +501,7 @@ async function generate(){
     if(doNote)fetches.push(fetch("blank.pdf"));
     if(doAuth)fetches.push(fetch("auth.pdf"));
     if(doMort)fetches.push(fetch(mortVer==="tw"?"mortgage_tw.pdf":"mortgage_hj.pdf"));
+    if(doDecl)fetches.push(fetch("decl.pdf"));
     const resps=await Promise.all(fetches);
     if(resps.some(r=>!r.ok))throw new Error("無法載入資源，請確認網路連線");
     const bufs=await Promise.all(resps.map(r=>r.arrayBuffer()));
@@ -427,6 +512,7 @@ async function generate(){
     const blankBytes=doNote?bufs[idx++]:null;
     const authBytes=doAuth?bufs[idx++]:null;
     const mortBytes=doMort?bufs[idx++]:null;
+    const declBytes=doDecl?bufs[idx++]:null;
 
     const zip=new JSZip();
     const namePrefix=issuers[0]?.name||"未命名";
@@ -467,6 +553,25 @@ async function generate(){
           :await makeMortPDFHJ(fontBytes,mortBytes,iss);
         const vLabel=mortVer==="tw"?"台灣聯合":"合經";
         zip.file(`抵押權設定種類約定書_${vLabel}_${iss.name}.pdf`,bytes);
+      }
+    }
+
+    // 撥款個人聲明書
+    if(doDecl){
+      const caseNo=document.getElementById("decl-case").value||"";
+      const year=document.getElementById("decl-year").value||"";
+      const month=document.getElementById("decl-month").value||"";
+      const day=document.getElementById("decl-day").value||"";
+      const amtCN=toChinese(amt);
+      const declSelected=issuers.filter((iss,i)=>{
+        if(iss.type!=="公司")return false;
+        const chk=document.getElementById(`decl-chk-${i}`);
+        return chk&&chk.checked;
+      });
+      if(declSelected.length===0){showMsg("聲明書：請至少勾選一位公司發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      for(const iss of declSelected){
+        const bytes=await makeDeclPDF(fontBytes,declBytes,iss,caseNo,year,month,day,amtCN);
+        zip.file(`撥款個人聲明書_${iss.name}.pdf`,bytes);
       }
     }
 
