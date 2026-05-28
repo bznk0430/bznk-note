@@ -574,15 +574,13 @@ function parseIdFront(rawText) {
   //    注意：「姓」常被 OCR 誤讀為「妓」（字形相似），需同時匹配兩者
   //    容許「姓 名」「妓 名」「姓名」等各種空白與誤讀變體
   // OCR 常見字形誤讀：姓→妓/仿，名→名/#
-  // 例如「姓名 黃王權」可能被讀成「仿 # 黃 壬 棠」
+  // PSM 11 模式下文字順序不固定，名字可能出現在 label 前後都要找
+
+  // 策略①：label 後（正常讀取順序）
   const namePatterns = [
-    // 策略 A：最嚴格，label 後直到下一個欄位關鍵字
     /[姓妓仿]\s*[名#＃]\s+([一-鿿\s]{2,20}?)(?=\s*(?:出生|性別|統一|發證|民國|\d))/,
-    // 策略 B：label 後接一連串中文（含字間空格）
     /[姓妓仿]\s*[名#＃]\s+([一-鿿][\s一-鿿]{0,12}[一-鿿])/,
-    // 策略 C：label 後緊接 2-6 個中文字
     /[姓妓仿]\s*[名#＃]\s+([一-鿿]{2,6})/,
-    // 策略 D：純「名」字 label（前面的「姓」字完全不見時）
     /(?<![一-鿿])名\s+([一-鿿]{2,6})/,
   ];
   for (const p of namePatterns) {
@@ -593,16 +591,34 @@ function parseIdFront(rawText) {
     }
   }
 
-  // ④ 位置比對 fallback：「性別」前的最後一段 2~5 個中文字
-  //    當姓名標籤被完全誤讀時使用（比直接掃描全文更精確）
+  // 策略②：label 周圍視窗（PSM 11 可能把名字讀在 label 前面）
   if (!result.name) {
-    const genderPos = compact.search(/性別|怡別|恪別/);  // 性→怡 也是常見誤讀
+    const labelPos = compact.search(/[姓妓仿][名#＃]/);
+    if (labelPos >= 0) {
+      const LABEL_CHARS = new Set([..."姓名妓仿#＃臾"]);
+      const SKIP = /中華|國民|身分|民國|出生|統一|發證|換發|臺灣/;
+      const cjkFilter = (w) =>
+        [...w].filter(c => /[一-鿿㐀-䶿]/.test(c) && !LABEL_CHARS.has(c));
+      // 先試 label 後（正常），再試 label 前（PSM 11 逆序）
+      const afterChars  = cjkFilter(compact.slice(labelPos + 2, labelPos + 25));
+      const beforeChars = cjkFilter(compact.slice(Math.max(0, labelPos - 25), labelPos));
+      for (const chars of [afterChars, beforeChars]) {
+        if (chars.length >= 2) {
+          const candidate = chars.slice(0, 5).join("");
+          if (!SKIP.test(candidate)) { result.name = candidate; break; }
+        }
+      }
+    }
+  }
+
+  // 策略③：「性別」前的最後一段 2~5 中文字（姓名 label 完全消失時的最後手段）
+  //    性→丞/怡/恪 都是常見 OCR 誤讀
+  if (!result.name) {
+    const genderPos = compact.search(/[性怡丞恪][別]/);
     if (genderPos > 0) {
       const SKIP = /中華|國民|身分|民國|出生|統一|發證|換發|居留|臺灣|中文|外文/;
       const beforeGender = compact.slice(0, genderPos);
-      // 找出所有 2~5 個中文字的連續段
       const cjkRuns = [...beforeGender.matchAll(/[一-鿿㐀-䶿]{2,5}/g)];
-      // 取最後一個不在 SKIP 清單中的候選
       for (let j = cjkRuns.length - 1; j >= 0; j--) {
         const candidate = cjkRuns[j][0];
         if (!SKIP.test(candidate)) { result.name = candidate; break; }
