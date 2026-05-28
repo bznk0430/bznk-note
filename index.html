@@ -401,6 +401,9 @@ async function getOcrWorker() {
     await worker.load();
     await worker.loadLanguage("chi_tra+eng");
     await worker.initialize("chi_tra+eng");
+    // PSM 11（稀疏文字）：身分證文字分散在底紋上，此模式能找到更多散落文字
+    // PSM 3（預設自動）常在有底紋的卡片上漏掉大片文字
+    await worker.setParameters({ tessedit_pageseg_mode: "11" });
     return worker;
   })();
 
@@ -590,8 +593,24 @@ function parseIdFront(rawText) {
     }
   }
 
-  // 注意：不做無「姓名」標籤的 fallback，以免底紋雜訊被誤抓為姓名
-  // 若無法辨識姓名，使用者可查看「原始辨識文字」並手動填寫
+  // ④ 位置比對 fallback：「性別」前的最後一段 2~5 個中文字
+  //    當姓名標籤被完全誤讀時使用（比直接掃描全文更精確）
+  if (!result.name) {
+    const genderPos = compact.search(/性別|怡別|恪別/);  // 性→怡 也是常見誤讀
+    if (genderPos > 0) {
+      const SKIP = /中華|國民|身分|民國|出生|統一|發證|換發|居留|臺灣|中文|外文/;
+      const beforeGender = compact.slice(0, genderPos);
+      // 找出所有 2~5 個中文字的連續段
+      const cjkRuns = [...beforeGender.matchAll(/[一-鿿㐀-䶿]{2,5}/g)];
+      // 取最後一個不在 SKIP 清單中的候選
+      for (let j = cjkRuns.length - 1; j >= 0; j--) {
+        const candidate = cjkRuns[j][0];
+        if (!SKIP.test(candidate)) { result.name = candidate; break; }
+      }
+    }
+  }
+
+  // 若仍無法辨識，使用者可查看「原始辨識文字」並手動填寫
 
   return result;
 }
