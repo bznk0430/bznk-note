@@ -433,11 +433,10 @@ async function preprocessForOcr(dataUrl, isPdf) {
       for (let k = 0; k < d.length; k += 4) {
         // 灰階（加權平均）
         let gray = 0.299 * d[k] + 0.587 * d[k+1] + 0.114 * d[k+2];
-        // 強化對比：縮小灰階下限，拉高亮度差異
-        gray = Math.min(255, Math.max(0, (gray - 80) * 2.2));
-        // 二值化：閾值 140，低於此值視為「黑色文字」
-        const bw = gray < 140 ? 0 : 255;
-        d[k] = d[k+1] = d[k+2] = bw;
+        // 溫和對比強化：不做二值化，保留字元細節
+        // 過度二值化會毀掉身分證字號等細緻字形（e.g. F104389722 → f1D438）
+        gray = Math.min(255, Math.max(0, (gray - 50) * 1.6));
+        d[k] = d[k+1] = d[k+2] = Math.round(gray);
         d[k+3] = 255;
       }
 
@@ -580,21 +579,21 @@ function parseIdFront(rawText) {
   // 把每個字之間可能插入的空格壓縮後用來搜尋（OCR 常見問題）
   const compact = text.replace(/\s+/g, " ");
 
-  // ① 身分證字號：1 大寫英文 + 9 數字，最可靠
-  const idMatch = text.match(/[A-Z]\d{9}/);
-  if (idMatch) result.id = idMatch[0];
+  // ① 身分證字號：1 英文（大小寫）+ 9 數字，統一轉大寫
+  //    OCR 有時把大寫 F 讀成小寫 f，用 [A-Za-z] 都接受
+  const idMatch = text.match(/[A-Za-z]\d{9}/);
+  if (idMatch) result.id = idMatch[0].toUpperCase();
 
   // ② 姓名：在「姓名」標籤後，取 2~6 個中文字
-  //    容許「姓 名」「姓名」「姓　名」等各種空白變體
-  //    注意：一定要找到「姓名」標籤再取內容，不做盲目 fallback
-  //    （否則身分證底紋雜訊會被誤認為姓名，例如「圓巳曲八」）
+  //    注意：「姓」常被 OCR 誤讀為「妓」（字形相似），需同時匹配兩者
+  //    容許「姓 名」「妓 名」「姓名」等各種空白與誤讀變體
   const namePatterns = [
-    // 策略 A：姓名後直到下一個關鍵字（最嚴格，最準確）
-    /姓\s*名\s+([一-鿿\s]{2,20}?)(?=\s*(?:出生|性別|統一|發證|民國|\d))/,
+    // 策略 A：最嚴格，姓名後直到下一個欄位關鍵字（姓/妓 兩者都接受）
+    /[姓妓]\s*名\s+([一-鿿\s]{2,20}?)(?=\s*(?:出生|性別|統一|發證|民國|\d))/,
     // 策略 B：姓名後接一連串中文（含字間空格）
-    /姓\s*名\s+([一-鿿][\s一-鿿]{0,12}[一-鿿])/,
+    /[姓妓]\s*名\s+([一-鿿][\s一-鿿]{0,12}[一-鿿])/,
     // 策略 C：姓名後緊接 2-6 個中文字
-    /姓\s*名\s+([一-鿿]{2,6})/,
+    /[姓妓]\s*名\s+([一-鿿]{2,6})/,
   ];
   for (const p of namePatterns) {
     const m = compact.match(p);
@@ -604,7 +603,7 @@ function parseIdFront(rawText) {
     }
   }
 
-  // 注意：不做無「姓名」標籤的 fallback，以免身分證底紋雜訊被誤抓為姓名
+  // 注意：不做無「姓名」標籤的 fallback，以免底紋雜訊被誤抓為姓名
   // 若無法辨識姓名，使用者可查看「原始辨識文字」並手動填寫
 
   return result;
