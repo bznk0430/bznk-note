@@ -31,7 +31,6 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
 .badge-pe{background:#e1f5ee;color:#085041}
 .preview-bar{background:#f9f8f5;border-radius:8px;padding:10px 14px;font-size:12px;color:#666;display:flex;gap:16px;flex-wrap:wrap}
 .preview-bar strong{color:#1a1a18}
-/* 附件區塊 */
 .attach-item{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:0.5px solid rgba(0,0,0,0.08);border-radius:10px;background:#fafaf8}
 .attach-header{display:flex;align-items:center;gap:10px;cursor:pointer}
 .attach-header input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#1a1a18}
@@ -41,7 +40,6 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
 .issuer-check-list{display:flex;flex-wrap:wrap;gap:8px}
 .issuer-check{display:flex;align-items:center;gap:5px;font-size:12px;color:#444;cursor:pointer}
 .issuer-check input{width:14px;height:14px;accent-color:#1a1a18;cursor:pointer}
-/* 產生按鈕 */
 .gen-btn{background:#1a1a18;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:500;cursor:pointer;width:100%;transition:opacity 0.15s}
 .gen-btn:hover:not(:disabled){opacity:0.85}
 .gen-btn:disabled{background:#ccc;cursor:not-allowed}
@@ -49,15 +47,23 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
 .msg-err{background:#fce8e8;color:#a32d2d}
 .msg-ok{background:#e1f5ee;color:#085041}
 
-/* ── OCR 身分證掃描區塊 ── */
-.ocr-section{margin-top:4px;padding:10px 12px;background:#f2f6ff;border-radius:8px;border:0.5px solid rgba(60,100,240,0.15)}
-.ocr-title{font-size:11px;font-weight:600;color:#334;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+/* ── OCR 掃描區塊 ── */
+.ocr-section{margin-top:4px;padding:10px 12px;border-radius:8px;border:0.5px solid}
+.ocr-section.type-pe{background:#f2f6ff;border-color:rgba(60,100,240,0.15)}
+.ocr-section.type-co{background:#f2f8f5;border-color:rgba(8,100,65,0.15)}
+.ocr-title{font-size:11px;font-weight:600;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.type-pe .ocr-title{color:#334}
+.type-co .ocr-title{color:#085041}
 .ocr-btns{display:flex;gap:8px;flex-wrap:wrap}
-.scan-lbl{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:0.5px solid rgba(60,100,240,0.3);border-radius:7px;font-size:12px;color:#335;cursor:pointer;background:#fff;transition:background 0.12s;user-select:none}
-.scan-lbl:hover{background:#e8eeff}
-.scan-lbl.done{border-color:rgba(8,80,65,0.35);color:#085041;background:#eaf7f2}
-.ocr-hint{font-size:10px;color:#99a;margin-top:5px}
-.ocr-status{font-size:11px;margin-top:6px;padding:5px 9px;border-radius:6px;background:rgba(0,0,0,0.04);color:#888;line-height:1.4}
+.scan-lbl{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:0.5px solid;border-radius:7px;font-size:12px;cursor:pointer;background:#fff;transition:background 0.12s;user-select:none}
+.type-pe .scan-lbl{border-color:rgba(60,100,240,0.3);color:#335}
+.type-pe .scan-lbl:hover{background:#e8eeff}
+.type-pe .scan-lbl.done{border-color:rgba(8,80,65,0.35);color:#085041;background:#eaf7f2}
+.type-co .scan-lbl{border-color:rgba(8,100,65,0.3);color:#085041}
+.type-co .scan-lbl:hover{background:#e0f5ec}
+.type-co .scan-lbl.done{border-color:rgba(8,80,65,0.5);color:#085041;background:#d5f0e5}
+.ocr-hint{font-size:10px;color:#99a;margin-top:5px;line-height:1.5}
+.ocr-status{font-size:11px;margin-top:6px;padding:5px 9px;border-radius:6px;background:rgba(0,0,0,0.04);color:#888;line-height:1.5}
 .ocr-status.ok{color:#085041;background:#e1f5ee}
 .ocr-status.warn{color:#7a4e00;background:#fff6e0}
 .ocr-status.loading{color:#335;background:#e8eeff}
@@ -67,7 +73,6 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
 <div class="wrap">
   <div><h1>本票產生器</h1><div class="sub">台灣聯合金融科技 · BZNK 平台</div></div>
 
-  <!-- 金額 -->
   <div class="card">
     <div class="card-title">票面金額</div>
     <div class="row">
@@ -76,14 +81,12 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
     </div>
   </div>
 
-  <!-- 發票人 -->
   <div class="card">
     <div class="card-title">發票人資料（最多5位）</div>
     <div id="issuers"></div>
     <button class="add-btn" onclick="addIssuer()">＋ 新增發票人</button>
   </div>
 
-  <!-- 附件 -->
   <div class="card">
     <div class="card-title">附件文件</div>
     <div class="attach-item" id="attach-note">
@@ -216,7 +219,7 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
   <button class="gen-btn" id="genBtn" onclick="generate()">產生並下載文件</button>
 </div>
 
-<!-- Tesseract.js（本地端OCR，繁體中文，不需外部AI API） -->
+<!-- Tesseract.js 4：明確指定所有 CDN 路徑，確保 GitHub Pages 可正常運作 -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
@@ -247,52 +250,63 @@ let issuers=[];
 function addIssuer(){
   if(issuers.length>=5){showMsg("最多只能有5位發票人","err");return;}
   issuers.push({type:"個人",name:"",id:"",address:"",rep:"",ocrStatus:"",ocrOk:false,ocrScanned:{}});
-  renderIssuers();
-  renderAuthIssuerList();
-  renderMortIssuerList();
-  renderDeclIssuerList();
-  renderPledgeIssuerList();
-  renderPromiseIssuerList();
-  updatePreview();
+  renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();updatePreview();
 }
 function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();updatePreview();}
 function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();}updatePreview();}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
 function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
 
-// ── OCR 區塊 HTML 產生 ──────────────────────────────────────────────────────
+// ── OCR 區塊 HTML ─────────────────────────────────────────────────────────────
+
+function ocrStatusHtml(iss) {
+  if (!iss.ocrStatus) return "";
+  let cls = "warn";
+  if (iss.ocrStatus.startsWith("✓")) cls = "ok";
+  else if (iss.ocrStatus.startsWith("⏳")) cls = "loading";
+  return `<div class="ocr-status ${cls}">${iss.ocrStatus}</div>`;
+}
 
 function ocrSectionHtml(i, iss) {
-  if (iss.type === "公司") return "";
-
-  // 按鈕狀態
-  const frontDone = iss.ocrScanned && iss.ocrScanned.front;
-  const backDone  = iss.ocrScanned && iss.ocrScanned.back;
-
-  let statusHtml = "";
-  if (iss.ocrStatus) {
-    let cls = "";
-    if (iss.ocrStatus.startsWith("✓")) cls = "ok";
-    else if (iss.ocrStatus.startsWith("⏳")) cls = "loading";
-    else cls = "warn";
-    statusHtml = `<div class="ocr-status ${cls}">${iss.ocrStatus}</div>`;
+  if (iss.type === "公司") {
+    const done = iss.ocrScanned && iss.ocrScanned.company;
+    return `<div class="ocr-section type-co">
+      <div class="ocr-title">🏢 變更登記表掃描自動填入（本地辨識・不限流量）</div>
+      <div class="ocr-btns">
+        <label class="scan-lbl${done?" done":""}" for="ocr-co-${i}">
+          ${done?"✓ 已掃描":"📄 上傳變更登記表第一頁"}
+          <input type="file" id="ocr-co-${i}" accept="image/*" style="display:none" onchange="scanCompanyDoc(${i},this)">
+        </label>
+      </div>
+      <div class="ocr-hint">
+        支援圖片格式（JPG / PNG / HEIC 等）。<br>
+        自動辨識：公司名稱、統一編號、代表人、公司地址。<br>
+        請確保第一頁完整入鏡、文字清晰。
+      </div>
+      ${ocrStatusHtml(iss)}
+    </div>`;
+  } else {
+    const frontDone = iss.ocrScanned && iss.ocrScanned.front;
+    const backDone  = iss.ocrScanned && iss.ocrScanned.back;
+    return `<div class="ocr-section type-pe">
+      <div class="ocr-title">🪪 身分證掃描自動填入（本地辨識・不限流量）</div>
+      <div class="ocr-btns">
+        <label class="scan-lbl${frontDone?" done":""}" for="ocr-f-${i}">
+          ${frontDone?"✓":"📷"} 正面（姓名＋身分證字號）
+          <input type="file" id="ocr-f-${i}" accept="image/*" style="display:none" onchange="scanIdCard(${i},'front',this)">
+        </label>
+        <label class="scan-lbl${backDone?" done":""}" for="ocr-b-${i}">
+          ${backDone?"✓":"📷"} 背面（戶籍地址）
+          <input type="file" id="ocr-b-${i}" accept="image/*" style="display:none" onchange="scanIdCard(${i},'back',this)">
+        </label>
+      </div>
+      <div class="ocr-hint">
+        背面請翻正後拍攝，避免倒置。辨識完成後請核對欄位是否正確。<br>
+        首次使用需下載繁體中文語言包（約 20MB），之後瀏覽器會快取。
+      </div>
+      ${ocrStatusHtml(iss)}
+    </div>`;
   }
-
-  return `<div class="ocr-section">
-    <div class="ocr-title">🪪 身分證掃描自動填入（本地辨識・不限流量）</div>
-    <div class="ocr-btns">
-      <label class="scan-lbl${frontDone?" done":""}" for="ocr-f-${i}">
-        ${frontDone?"✓":"📷"} 正面（姓名＋身分證字號）
-        <input type="file" id="ocr-f-${i}" accept="image/*" style="display:none" onchange="scanId(${i},'front',this)">
-      </label>
-      <label class="scan-lbl${backDone?" done":""}" for="ocr-b-${i}">
-        ${backDone?"✓":"📷"} 背面（戶籍地址）
-        <input type="file" id="ocr-b-${i}" accept="image/*" style="display:none" onchange="scanId(${i},'back',this)">
-      </label>
-    </div>
-    <div class="ocr-hint">請確認圖片文字清晰、方向正確（背面請翻正後拍攝）。辨識完成後請核對欄位資料。</div>
-    ${statusHtml}
-  </div>`;
 }
 
 function renderIssuers(){
@@ -332,7 +346,7 @@ function renderIssuers(){
         </div>
         <div class="field" style="flex:2">
           <label>地址</label>
-          <input value="${esc(iss.address)}" placeholder="台中市大里區..." oninput="setIssuer(${i},'address',this.value)">
+          <input value="${esc(iss.address)}" placeholder="${isCo?"公司登記地址":"戶籍地址"}" oninput="setIssuer(${i},'address',this.value)">
         </div>
       </div>
       ${ocrSectionHtml(i, iss)}`;
@@ -340,7 +354,7 @@ function renderIssuers(){
   });
 }
 
-// ── OCR 核心功能 ─────────────────────────────────────────────────────────────
+// ── OCR Worker 管理 ───────────────────────────────────────────────────────────
 
 let _ocrWorker = null;
 let _ocrWorkerPromise = null;
@@ -348,147 +362,228 @@ let _ocrWorkerPromise = null;
 async function getOcrWorker() {
   if (_ocrWorker) return _ocrWorker;
   if (_ocrWorkerPromise) return await _ocrWorkerPromise;
+
+  if (typeof Tesseract === "undefined") {
+    throw new Error("Tesseract.js 未載入，請確認網路連線後重新整理頁面");
+  }
+
   _ocrWorkerPromise = Tesseract.createWorker(["chi_tra", "eng"], 1, {
+    workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/worker.min.js",
+    langPath:   "https://tessdata.projectnaptha.com/4.0.0",
+    corePath:   "https://cdn.jsdelivr.net/npm/tesseract.js-core@4/tesseract-core.wasm.js",
     logger: m => {
-      if (m.status === "loading tesseract core" || m.status === "loading language traineddata") {
-        console.log("[OCR] " + m.status + " " + Math.round((m.progress||0)*100) + "%");
+      if (m.status === "recognizing text") {
+        console.log(`[OCR] 辨識中 ${Math.round(m.progress * 100)}%`);
       }
     }
   });
+
   _ocrWorker = await _ocrWorkerPromise;
   return _ocrWorker;
 }
 
-async function scanId(i, side, inputEl) {
-  if (!inputEl.files || !inputEl.files[0]) return;
-  const file = inputEl.files[0];
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error("檔案讀取失敗"));
+    reader.readAsDataURL(file);
+  });
+}
 
-  issuers[i].ocrStatus = side === "front"
-    ? "⏳ 辨識正面中…（首次使用需下載語言包 ~20MB，請稍候）"
-    : "⏳ 辨識背面中…";
-  issuers[i].ocrOk = false;
-  renderIssuers();
+function applyOcrResult(i, extracted, side) {
+  const filled = [];
+  if (extracted.name)    { issuers[i].name    = extracted.name;    filled.push("名稱「" + extracted.name + "」"); }
+  if (extracted.id)      { issuers[i].id      = extracted.id;      filled.push("編號「" + extracted.id + "」"); }
+  if (extracted.rep)     { issuers[i].rep     = extracted.rep;     filled.push("負責人「" + extracted.rep + "」"); }
+  if (extracted.address) { issuers[i].address = extracted.address; filled.push("地址"); }
 
-  try {
-    const worker = await getOcrWorker();
-    const { data: { text } } = await worker.recognize(file);
+  if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+  issuers[i].ocrScanned[side] = true;
 
-    let extracted = {};
-    if (side === "front") {
-      extracted = parseIdFront(text);
-    } else {
-      extracted = parseIdBack(text);
-    }
-
-    const filled = [];
-
-    // 只在欄位尚未填寫時自動帶入（避免覆蓋已修改的資料）
-    if (extracted.name) {
-      issuers[i].name = extracted.name;
-      filled.push("姓名「" + extracted.name + "」");
-    }
-    if (extracted.id) {
-      issuers[i].id = extracted.id;
-      filled.push("身分證字號「" + extracted.id + "」");
-    }
-    if (extracted.address) {
-      issuers[i].address = extracted.address;
-      filled.push("地址");
-    }
-
-    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
-    issuers[i].ocrScanned[side] = true;
-
-    if (filled.length > 0) {
-      issuers[i].ocrStatus = "✓ 已填入：" + filled.join("、") + "　請核對是否正確";
-      issuers[i].ocrOk = true;
-    } else {
-      issuers[i].ocrStatus = "⚠️ 未能辨識欄位，圖片可能模糊或方向不對，請手動填寫";
-      issuers[i].ocrOk = false;
-    }
-
-  } catch(e) {
-    console.error("[OCR error]", e);
-    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
-    issuers[i].ocrScanned[side] = false;
-    issuers[i].ocrStatus = "❌ 辨識失敗，請手動填寫（" + (e.message||"未知錯誤") + "）";
+  if (filled.length > 0) {
+    issuers[i].ocrStatus = "✓ 已填入：" + filled.join("、") + "　請核對是否正確";
+    issuers[i].ocrOk = true;
+  } else {
+    issuers[i].ocrStatus = "⚠️ 未辨識到欄位，圖片可能不清晰或方向不對，請手動填寫";
     issuers[i].ocrOk = false;
   }
 
   renderIssuers();
-  renderAuthIssuerList();
-  renderMortIssuerList();
-  renderDeclIssuerList();
-  renderPledgeIssuerList();
-  renderPromiseIssuerList();
+  renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();
   updatePreview();
 }
 
-// ── 解析身分證正面 ────────────────────────────────────────────────────────────
+// ── 個人身分證掃描 ────────────────────────────────────────────────────────────
+
+async function scanIdCard(i, side, inputEl) {
+  if (!inputEl.files || !inputEl.files[0]) return;
+  const file = inputEl.files[0];
+
+  issuers[i].ocrStatus = side === "front"
+    ? "⏳ 辨識正面中，請稍候…（首次需下載語言包約 20MB）"
+    : "⏳ 辨識背面中，請稍候…";
+  issuers[i].ocrOk = false;
+  renderIssuers();
+
+  try {
+    const dataURL = await fileToDataURL(file);
+    const worker  = await getOcrWorker();
+    const { data: { text } } = await worker.recognize(dataURL);
+    const extracted = side === "front" ? parseIdFront(text) : parseIdBack(text);
+    applyOcrResult(i, extracted, side);
+  } catch(e) {
+    console.error("[OCR scanIdCard error]", e);
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned[side] = false;
+    const msg = (e && (e.message || e.toString())) || "未知錯誤";
+    issuers[i].ocrStatus = "❌ 辨識失敗，請手動填寫（" + msg + "）";
+    issuers[i].ocrOk = false;
+    renderIssuers();
+  }
+}
+
+// ── 公司變更登記表掃描 ────────────────────────────────────────────────────────
+
+async function scanCompanyDoc(i, inputEl) {
+  if (!inputEl.files || !inputEl.files[0]) return;
+  const file = inputEl.files[0];
+
+  issuers[i].ocrStatus = "⏳ 辨識變更登記表中，請稍候…（首次需下載語言包約 20MB）";
+  issuers[i].ocrOk = false;
+  renderIssuers();
+
+  try {
+    const dataURL = await fileToDataURL(file);
+    const worker  = await getOcrWorker();
+    const { data: { text } } = await worker.recognize(dataURL);
+    const extracted = parseCompanyDoc(text);
+    applyOcrResult(i, extracted, "company");
+  } catch(e) {
+    console.error("[OCR scanCompanyDoc error]", e);
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned.company = false;
+    const msg = (e && (e.message || e.toString())) || "未知錯誤";
+    issuers[i].ocrStatus = "❌ 辨識失敗，請手動填寫（" + msg + "）";
+    issuers[i].ocrOk = false;
+    renderIssuers();
+  }
+}
+
+// ── 解析：身分證正面 ──────────────────────────────────────────────────────────
+
 function parseIdFront(rawText) {
-  console.log("[OCR front raw]", rawText);
+  console.log("[OCR id-front]", rawText);
   const result = {};
   const text = rawText.replace(/\r/g, "\n");
 
-  // 姓名：「姓 名」後接中文字，排除常見欄位關鍵字
   const namePatterns = [
-    /姓\s*名\s+([^\n出性統發國0-9A-Z]+)/,
-    /姓名\s*([^\n出性統發國0-9A-Z]{2,6})/,
+    /姓\s*名\s+([^\n出性統發國\d]+)/,
+    /姓名\s+([^\n出性統發國\d]{2,7})/,
   ];
   for (const p of namePatterns) {
     const m = text.match(p);
     if (m) {
-      // 只保留中文字（去除空格與OCR雜訊）
-      const raw = m[1].trim();
-      const name = raw.replace(/\s+/g, "").replace(/[^一-鿿㐀-䶿]/g, "");
-      if (name.length >= 2 && name.length <= 7) {
-        result.name = name;
-        break;
-      }
+      const name = m[1].trim().replace(/\s+/g,"").replace(/[^一-鿿㐀-䶿]/g,"");
+      if (name.length >= 2 && name.length <= 7) { result.name = name; break; }
     }
   }
 
-  // 身分證字號：1碼大寫英文 + 9碼數字
   const idMatch = text.match(/[A-Z]\d{9}/);
   if (idMatch) result.id = idMatch[0];
 
   return result;
 }
 
-// ── 解析身分證背面（戶籍地址）────────────────────────────────────────────────
+// ── 解析：身分證背面 ──────────────────────────────────────────────────────────
+
 function parseIdBack(rawText) {
-  console.log("[OCR back raw]", rawText);
+  console.log("[OCR id-back]", rawText);
   const result = {};
   const text = rawText.replace(/\r/g, "\n");
 
-  // 嘗試找「戶籍地址」或「居住地址」標籤後的文字
-  const labeledMatch = text.match(/(?:戶籍地址|居住地址|地\s*址)[：:\s]+([^\n]+)/);
-  if (labeledMatch) {
-    result.address = labeledMatch[1].trim().replace(/\s+/g, "");
+  const labeled = text.match(/(?:戶籍地址|居住地址|地\s*址)[：:\s]+([^\n]+)/);
+  if (labeled) {
+    result.address = labeled[1].trim().replace(/\s+/g,"");
     return result;
   }
 
-  // 逐行找符合台灣地址格式的行（包含市/縣 且 包含路/街/巷/弄 且 包含數字）
-  const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 6);
+  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l.length>6);
   for (const line of lines) {
-    const clean = line.replace(/\s+/g, "");
-    const hasCity    = /[市縣]/.test(clean);
-    const hasDistrict= /[區鄉鎮市]/.test(clean);
-    const hasRoad    = /[路街巷弄]/.test(clean);
-    const hasNum     = /\d/.test(clean);
-    if (hasCity && hasDistrict && hasRoad && hasNum && clean.length >= 8) {
-      result.address = clean;
+    const c = line.replace(/\s+/g,"");
+    if (/[市縣]/.test(c) && /[區鄉鎮]/.test(c) && /[路街巷弄]/.test(c) && /\d/.test(c) && c.length >= 10) {
+      result.address = c;
       break;
     }
   }
 
-  // fallback：最長一行當作地址（OCR 品質差時）
-  if (!result.address) {
-    const longest = lines
-      .map(l => l.replace(/\s+/g,""))
-      .filter(l => l.length >= 8 && /\d/.test(l))
-      .sort((a,b) => b.length - a.length)[0];
-    if (longest) result.address = longest;
+  return result;
+}
+
+// ── 解析：股份有限公司變更登記表（第一頁）────────────────────────────────────
+
+function parseCompanyDoc(rawText) {
+  console.log("[OCR company]", rawText);
+  const result = {};
+  const text = rawText.replace(/\r/g, "\n");
+
+  // ① 公司名稱
+  const namePatterns = [
+    /一[、.]\s*公司名稱[\s\S]{0,20}中文\s+([^\n外\/]{2,30})/,
+    /公司名稱[\s\S]{0,10}中文\s+([^\n外\/]{2,30})/,
+    /中文\s+([^\n外\/]{2,20})/,
+  ];
+  for (const p of namePatterns) {
+    const m = text.match(p);
+    if (m) {
+      const name = m[1].trim().replace(/\s+/g,"").replace(/[^一-鿿㐀-䶿（）()]/g,"");
+      if (name.length >= 2) { result.name = name; break; }
+    }
+  }
+  if (!result.name) {
+    const coMatch = text.match(/[一-鿿]{2,15}(?:股份有限公司|有限公司)/);
+    if (coMatch) result.name = coMatch[0];
+  }
+
+  // ② 統一編號
+  const idSection = text.match(/統一編號([^\n]{0,40})/);
+  if (idSection) {
+    const digits = idSection[1].replace(/[^0-9]/g,"");
+    if (digits.length >= 8) result.id = digits.slice(0, 8);
+  }
+  if (!result.id) {
+    const allEight = [...text.matchAll(/\b(\d{8})\b/g)];
+    for (const m of allEight) {
+      if (!/^(19|20)\d{6}$/.test(m[1])) { result.id = m[1]; break; }
+    }
+  }
+
+  // ③ 公司地址
+  const addrPatterns = [
+    /二[、.]\s*公司所在地\s*[（(]?\d*[)）]?\s*([^\n四三（(]{6,})/,
+    /公司所在地\s*[（(]?\d+[)）]\s*([^\n]{6,})/,
+    /公司所在地\s+([^\n]{6,})/,
+  ];
+  for (const p of addrPatterns) {
+    const m = text.match(p);
+    if (m) {
+      const addr = m[1].trim().replace(/\s+/g,"");
+      if (addr.length >= 6) { result.address = addr; break; }
+    }
+  }
+
+  // ④ 負責人
+  const repPatterns = [
+    /三[、.]\s*代表公司負責人\s+([^\n\s四五]{2,6})/,
+    /代表公司負責人\s+([^\n\s]{2,6})/,
+    /代表[^人]*負責人\s+([^\n\s]{2,6})/,
+  ];
+  for (const p of repPatterns) {
+    const m = text.match(p);
+    if (m) {
+      const rep = m[1].trim().replace(/\s+/g,"").replace(/[^一-鿿㐀-䶿]/g,"");
+      if (rep.length >= 2 && rep.length <= 6) { result.rep = rep; break; }
+    }
   }
 
   return result;
@@ -514,25 +609,11 @@ function renderIssuerCheckList(listId, chkPrefix, filterFn){
   });
 }
 
-function renderAuthIssuerList(){
-  renderIssuerCheckList("auth-issuer-list","auth-chk",iss=>iss.type==="個人");
-}
-
-function renderMortIssuerList(){
-  renderIssuerCheckList("mort-issuer-list","mort-chk",()=>true);
-}
-
-function renderDeclIssuerList(){
-  renderIssuerCheckList("decl-issuer-list","decl-chk",iss=>iss.type==="公司");
-}
-
-function renderPledgeIssuerList(){
-  renderIssuerCheckList("pledge-issuer-list","pledge-chk",()=>true);
-}
-
-function renderPromiseIssuerList(){
-  renderIssuerCheckList("promise-issuer-list","promise-chk",()=>true);
-}
+function renderAuthIssuerList(){renderIssuerCheckList("auth-issuer-list","auth-chk",iss=>iss.type==="個人");}
+function renderMortIssuerList(){renderIssuerCheckList("mort-issuer-list","mort-chk",()=>true);}
+function renderDeclIssuerList(){renderIssuerCheckList("decl-issuer-list","decl-chk",iss=>iss.type==="公司");}
+function renderPledgeIssuerList(){renderIssuerCheckList("pledge-issuer-list","pledge-chk",()=>true);}
+function renderPromiseIssuerList(){renderIssuerCheckList("promise-issuer-list","promise-chk",()=>true);}
 
 function toggleAttach(id){
   const chk=document.getElementById(`chk-${id}`);
@@ -575,41 +656,21 @@ async function makeNotePDF(fontBytes, blankBytes, amt){
   const font=await pdfDoc.embedFont(fontBytes);
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
-
-  function dt(text,x,yTop,maxW,sz=10){
-    if(!text)return;
-    let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-    page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
-  }
-  function dc(text,x0,x1,yBase,sz=10){
-    if(!text)return;
-    const mw=x1-x0;let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
-    const tw=font.widthOfTextAtSize(text,s);
-    page.drawText(text,{x:x0+(mw-tw)/2,y:H-yBase,size:s,font,color:rgb(0,0,0)});
-  }
-
+  function dt(text,x,yTop,maxW,sz=10){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});}
+  function dc(text,x0,x1,yBase,sz=10){if(!text)return;const mw=x1-x0;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}const tw=font.widthOfTextAtSize(text,s);page.drawText(text,{x:x0+(mw-tw)/2,y:H-yBase,size:s,font,color:rgb(0,0,0)});}
   const arr=[...issuers];
   while(arr.length<5)arr.push({type:"個人",name:"",id:"",address:"",rep:""});
-
   const digits=String(parseInt(amt)).padStart(8,"0").slice(-8).split("");
-  [148,184,220,256,292,328,364,400].forEach((x,i)=>{
-    const ch=CN[digits[i]];const w=font.widthOfTextAtSize(ch,11);
-    page.drawText(ch,{x:x+(30-w)/2,y:H-96.3,size:11,font,color:rgb(0,0,0)});
-  });
+  [148,184,220,256,292,328,364,400].forEach((x,i)=>{const ch=CN[digits[i]];const w=font.widthOfTextAtSize(ch,11);page.drawText(ch,{x:x+(30-w)/2,y:H-96.3,size:11,font,color:rgb(0,0,0)});});
   dc(toChinese(amt),335.0,472.3,571.2);
-
-  dt(nd(arr[0]),125,170.1,200); dt(arr[0].id,219,190.8,107); dt(arr[0].address,128,211.7,198);
-  dt(nd(arr[1]),125,252.9,148); dt(arr[1].id,219,273.6,107); dt(arr[1].address,128,294.5,198);
-  dt(nd(arr[2]),381,252.9,138); dt(arr[2].id,472,273.6,91);  dt(arr[2].address,384,294.5,181);
-  dt(nd(arr[3]),125,335.7,148); dt(arr[3].id,219,356.4,107); dt(arr[3].address,128,377.3,198);
-  dt(nd(arr[4]),381,335.7,138); dt(arr[4].id,472,356.4,91);  dt(arr[4].address,384,377.3,181);
-
+  dt(nd(arr[0]),125,170.1,200);dt(arr[0].id,219,190.8,107);dt(arr[0].address,128,211.7,198);
+  dt(nd(arr[1]),125,252.9,148);dt(arr[1].id,219,273.6,107);dt(arr[1].address,128,294.5,198);
+  dt(nd(arr[2]),381,252.9,138);dt(arr[2].id,472,273.6,91);dt(arr[2].address,384,294.5,181);
+  dt(nd(arr[3]),125,335.7,148);dt(arr[3].id,219,356.4,107);dt(arr[3].address,128,377.3,198);
+  dt(nd(arr[4]),381,335.7,138);dt(arr[4].id,472,356.4,91);dt(arr[4].address,384,377.3,181);
   dc(nd(arr[0]),122.9,364.1,684.0);
-  dc(nd(arr[1]),125.5,276.7,725.5); dc(nd(arr[2]),397.9,549.4,725.5);
-  dc(nd(arr[3]),125.5,276.7,766.8); dc(nd(arr[4]),397.9,549.4,766.8);
-
+  dc(nd(arr[1]),125.5,276.7,725.5);dc(nd(arr[2]),397.9,549.4,725.5);
+  dc(nd(arr[3]),125.5,276.7,766.8);dc(nd(arr[4]),397.9,549.4,766.8);
   return await pdfDoc.save();
 }
 
@@ -621,21 +682,8 @@ async function makeAuthPDF(fontBytes, authBytes, issList){
   const font=await pdfDoc.embedFont(fontBytes);
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
-
-  function dc(text,x0,x1,yMid,sz=10){
-    if(!text)return;
-    const mw=x1-x0;let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
-    const tw=font.widthOfTextAtSize(text,s);
-    page.drawText(text,{x:x0+(mw-tw)/2,y:H-yMid-(s/2)+2,size:s,font,color:rgb(0,0,0)});
-  }
-
-  issList.slice(0,7).forEach((iss,i)=>{
-    const yMid=rowMidYs[i];
-    dc(iss.name, 40,  142,   yMid);
-    dc(iss.id,   142, 252.9, yMid);
-  });
-
+  function dc(text,x0,x1,yMid,sz=10){if(!text)return;const mw=x1-x0;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}const tw=font.widthOfTextAtSize(text,s);page.drawText(text,{x:x0+(mw-tw)/2,y:H-yMid-(s/2)+2,size:s,font,color:rgb(0,0,0)});}
+  issList.slice(0,7).forEach((iss,i)=>{const yMid=rowMidYs[i];dc(iss.name,40,142,yMid);dc(iss.id,142,252.9,yMid);});
   return await pdfDoc.save();
 }
 
@@ -646,20 +694,8 @@ async function makeMortPDF(fontBytes, mortBytes, iss){
   const font=await pdfDoc.embedFont(fontBytes);
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
-
-  function dt(text,x,yTop,maxW,sz=12){
-    if(!text)return;
-    let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-    page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});
-  }
-
-  const yProvider = 322.9, yId = 382.9, yAddr = 402.8;
-
-  dt(iss.name,   344.5, yProvider, 541-344.5);
-  dt(iss.id,     316.6, yId,       541-316.6);
-  dt(iss.address,313.3, yAddr,     541-313.3);
-
+  function dt(text,x,yTop,maxW,sz=12){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});}
+  dt(iss.name,344.5,322.9,541-344.5);dt(iss.id,316.6,382.9,541-316.6);dt(iss.address,313.3,402.8,541-313.3);
   return await pdfDoc.save();
 }
 
@@ -670,18 +706,8 @@ async function makeMortPDFHJ(fontBytes, mortBytes, iss){
   const font=await pdfDoc.embedFont(fontBytes);
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
-
-  function dt(text,x,yTop,maxW,sz=12){
-    if(!text)return;
-    let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-    page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});
-  }
-
-  dt(iss.name,   344.5, 383.4, 541-344.5);
-  dt(iss.id,     316.6, 443.4, 541-316.6);
-  dt(iss.address,313.3, 463.3, 541-313.3);
-
+  function dt(text,x,yTop,maxW,sz=12){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});}
+  dt(iss.name,344.5,383.4,541-344.5);dt(iss.id,316.6,443.4,541-316.6);dt(iss.address,313.3,463.3,541-313.3);
   return await pdfDoc.save();
 }
 
@@ -692,110 +718,48 @@ async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, 
   const font=await pdfDoc.embedFont(fontBytes);
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
-
   const SZ=14;
-  function dt(text,x,yTop,maxW,sz=SZ){
-    if(!text)return;
-    let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-    page.drawText(text,{x,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});
-  }
-  function dc(text,x0,x1,yTop,sz=SZ){
-    if(!text)return;
-    const mw=x1-x0;let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}
-    const tw=font.widthOfTextAtSize(text,s);
-    page.drawText(text,{x:x0+(mw-tw)/2,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});
-  }
-
-  dc(year,  136, 156.7, 124);
-  dc(month, 177, 192.3, 124);
-  dc(day,   213, 227.9, 124);
-
-  dt(caseNo, 79, 154, 216-79);
-  dt(amtChinese, 336, 154, 444-336-5);
-
-  dt(iss.name, 99, 560.8, 559.4-99);
-  dt(iss.id,   99, 598.7, 559.4-99);
-  dt(iss.rep,  119, 636.7, 559.4-119);
-
-  dt(holder,  89.4, 311.7, 559.4-89.4);
-  dt(account, 89.4, 341.4, 559.4-89.4);
-
+  function dt(text,x,yTop,maxW,sz=SZ){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});}
+  function dc(text,x0,x1,yTop,sz=SZ){if(!text)return;const mw=x1-x0;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}const tw=font.widthOfTextAtSize(text,s);page.drawText(text,{x:x0+(mw-tw)/2,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});}
+  dc(year,136,156.7,124);dc(month,177,192.3,124);dc(day,213,227.9,124);
+  dt(caseNo,79,154,216-79);dt(amtChinese,336,154,444-336-5);
+  dt(iss.name,99,560.8,559.4-99);dt(iss.id,99,598.7,559.4-99);dt(iss.rep,119,636.7,559.4-119);
+  dt(holder,89.4,311.7,559.4-89.4);dt(account,89.4,341.4,559.4-89.4);
   return await pdfDoc.save();
 }
 
 async function makePledgePDF(fontBytes, pledgeBytes, issList){
-  const slots = [
-    {yName:399.1, xName:325.3, yId:435.1, xId:315.1, yIdno:453.1, xIdno:327.1},
-    {yName:489.1, xName:327.1, yId:525.1, xId:315.1, yIdno:543.1, xIdno:327.1},
-  ];
-
+  const slots=[{yName:399.1,xName:325.3,yId:435.1,xId:315.1,yIdno:453.1,xIdno:327.1},{yName:489.1,xName:327.1,yId:525.1,xId:315.1,yIdno:543.1,xIdno:327.1}];
   const {PDFDocument,rgb}=PDFLib;
   const pdfDoc=await PDFDocument.load(pledgeBytes);
   pdfDoc.registerFontkit(fontkit);
   const font=await pdfDoc.embedFont(fontBytes);
   const page=pdfDoc.getPages()[1];
   const H=page.getHeight();
-
-  function dt(text,x,yTop,maxW,sz=10){
-    if(!text)return;
-    let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-    page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
-  }
-
+  function dt(text,x,yTop,maxW,sz=10){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});}
   issList.slice(0,2).forEach((iss,i)=>{
-    const slot=slots[i];
-    const isCo=iss.type==="公司";
+    const slot=slots[i];const isCo=iss.type==="公司";
     const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
-    dt(nameText, slot.xName, slot.yName, 559-slot.xName);
-    if(isCo){
-      dt(iss.id, slot.xId, slot.yId, 559-slot.xId);
-    } else {
-      dt(iss.id, slot.xIdno, slot.yIdno, 559-slot.xIdno);
-    }
+    dt(nameText,slot.xName,slot.yName,559-slot.xName);
+    if(isCo){dt(iss.id,slot.xId,slot.yId,559-slot.xId);}else{dt(iss.id,slot.xIdno,slot.yIdno,559-slot.xIdno);}
   });
-
   return await pdfDoc.save();
 }
 
 async function makePromisePDF(fontBytes, promiseBytes, issList, account, amtChinese){
-  const slots=[
-    {yName:141.4,yId:165.9,yAddr:190.6},
-    {yName:265.0,yId:289.6,yAddr:314.3},
-    {yName:388.7,yId:413.2,yAddr:437.9},
-    {yName:512.6,yId:537.1,yAddr:562.0},
-  ];
-
+  const slots=[{yName:141.4,yId:165.9,yAddr:190.6},{yName:265.0,yId:289.6,yAddr:314.3},{yName:388.7,yId:413.2,yAddr:437.9},{yName:512.6,yId:537.1,yAddr:562.0}];
   const {PDFDocument,rgb}=PDFLib;
   const pdfDoc=await PDFDocument.load(promiseBytes);
   pdfDoc.registerFontkit(fontkit);
   const font=await pdfDoc.embedFont(fontBytes);
-
-  const pg1=pdfDoc.getPages()[0];
-  const pg2=pdfDoc.getPages()[1];
-  const H=pg1.getHeight();
-
-  function dt(page,text,x,yTop,maxW,sz=10){
-    if(!text)return;
-    let s=sz;
-    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
-    page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
-  }
-
-  dt(pg1, account,    272, 729.5, 425-272);
-  dt(pg1, amtChinese, 460, 729.5, 559-460);
-
+  const pg1=pdfDoc.getPages()[0];const pg2=pdfDoc.getPages()[1];const H=pg1.getHeight();
+  function dt(page,text,x,yTop,maxW,sz=10){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});}
+  dt(pg1,account,272,729.5,425-272);dt(pg1,amtChinese,460,729.5,559-460);
   issList.slice(0,4).forEach((iss,i)=>{
-    const s=slots[i];
-    const isCo=iss.type==="公司";
+    const s=slots[i];const isCo=iss.type==="公司";
     const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
-    dt(pg2, nameText,  111,   s.yName, 559-111);
-    dt(pg2, iss.id,    179.7, s.yId,   559-179.7);
-    dt(pg2, iss.address, 110.8, s.yAddr, 559-110.8);
+    dt(pg2,nameText,111,s.yName,559-111);dt(pg2,iss.id,179.7,s.yId,559-179.7);dt(pg2,iss.address,110.8,s.yAddr,559-110.8);
   });
-
   return await pdfDoc.save();
 }
 
@@ -813,7 +777,6 @@ async function generate(){
     if(!iss.address){showMsg(`發票人 ${i+1}：請填寫地址`,"err");return;}
     if(iss.type==="公司"&&!iss.rep){showMsg(`發票人 ${i+1}：請填寫負責人姓名`,"err");return;}
   }
-
   const doNote=document.getElementById("chk-note").checked;
   const doAuth=document.getElementById("chk-auth").checked;
   const doMort=document.getElementById("chk-mort").checked;
@@ -821,10 +784,8 @@ async function generate(){
   const doPledge=document.getElementById("chk-pledge").checked;
   const doPromise=document.getElementById("chk-promise").checked;
   if(!doNote&&!doAuth&&!doMort&&!doDecl&&!doPledge&&!doPromise){showMsg("請至少勾選一份文件","err");return;}
-
   const btn=document.getElementById("genBtn");
   btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
-
   try{
     const mortVer=document.getElementById("mort-version")?.value||"tw";
     const fetches=[fetch("font.ttf")];
@@ -832,12 +793,11 @@ async function generate(){
     if(doAuth)fetches.push(fetch("auth.pdf"));
     if(doMort)fetches.push(fetch(mortVer==="tw"?"mortgage_tw.pdf":"mortgage_hj.pdf"));
     if(doDecl)fetches.push(fetch("decl.pdf"));
-    if(doPledge){const pledgeVer2=document.getElementById("pledge-version")?.value||"tw";fetches.push(fetch(pledgeVer2==="tw"?"pledge_tw.pdf":"pledge_hj.pdf"));}
+    if(doPledge){const pv=document.getElementById("pledge-version")?.value||"tw";fetches.push(fetch(pv==="tw"?"pledge_tw.pdf":"pledge_hj.pdf"));}
     if(doPromise)fetches.push(fetch("promise.pdf"));
     const resps=await Promise.all(fetches);
     if(resps.some(r=>!r.ok))throw new Error("無法載入資源，請確認網路連線");
     const bufs=await Promise.all(resps.map(r=>r.arrayBuffer()));
-
     btn.textContent="產生中…";
     let idx=0;
     const fontBytes=bufs[idx++];
@@ -847,57 +807,33 @@ async function generate(){
     const declBytes=doDecl?bufs[idx++]:null;
     const pledgeBytes=doPledge?bufs[idx++]:null;
     const promiseBytes=doPromise?bufs[idx++]:null;
-
     const zip=new JSZip();
     const namePrefix=issuers[0]?.name||"未命名";
     const amtStr=parseInt(amt).toLocaleString();
-
-    if(doNote){
-      const bytes=await makeNotePDF(fontBytes,blankBytes,amt);
-      zip.file(`本票_${namePrefix}_${amtStr}元.pdf`,bytes);
-    }
-
+    if(doNote){const bytes=await makeNotePDF(fontBytes,blankBytes,amt);zip.file(`本票_${namePrefix}_${amtStr}元.pdf`,bytes);}
     if(doAuth){
       const individuals=issuers.filter(iss=>iss.type==="個人");
-      const selected=individuals.filter((iss,i)=>{
-        const realIdx=issuers.indexOf(iss);
-        const chk=document.getElementById(`auth-chk-${realIdx}`);
-        return chk&&chk.checked;
-      });
+      const selected=individuals.filter(iss=>{const chk=document.getElementById(`auth-chk-${issuers.indexOf(iss)}`);return chk&&chk.checked;});
       if(selected.length===0){showMsg("委託書：請至少勾選一位個人發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
-
       const bytes=await makeAuthPDF(fontBytes,authBytes,selected);
-      const authNames=selected.map(iss=>iss.name).join("_");
-      zip.file(`財產所得查調委託書_${authNames}.pdf`,bytes);
+      zip.file(`財產所得查調委託書_${selected.map(i=>i.name).join("_")}.pdf`,bytes);
     }
-
     if(doMort){
       const mortVer=document.getElementById("mort-version").value;
-      const mortSelected=issuers.filter((iss,i)=>{
-        const chk=document.getElementById(`mort-chk-${i}`);
-        return chk&&chk.checked;
-      });
+      const mortSelected=issuers.filter((iss,i)=>{const chk=document.getElementById(`mort-chk-${i}`);return chk&&chk.checked;});
       if(mortSelected.length===0){showMsg("抵押權約定書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       for(const iss of mortSelected){
-        const bytes=mortVer==="tw"
-          ?await makeMortPDF(fontBytes,mortBytes,iss)
-          :await makeMortPDFHJ(fontBytes,mortBytes,iss);
-        const vLabel=mortVer==="tw"?"台灣聯合":"合經";
-        zip.file(`抵押權設定種類約定書_${vLabel}_${iss.name}.pdf`,bytes);
+        const bytes=mortVer==="tw"?await makeMortPDF(fontBytes,mortBytes,iss):await makeMortPDFHJ(fontBytes,mortBytes,iss);
+        zip.file(`抵押權設定種類約定書_${mortVer==="tw"?"台灣聯合":"合經"}_${iss.name}.pdf`,bytes);
       }
     }
-
     if(doDecl){
       const caseNo=document.getElementById("decl-case").value||"";
       const year=document.getElementById("decl-year").value||"";
       const month=document.getElementById("decl-month").value||"";
       const day=document.getElementById("decl-day").value||"";
       const amtCN=toChinese(amt);
-      const declSelected=issuers.filter((iss,i)=>{
-        if(iss.type!=="公司")return false;
-        const chk=document.getElementById(`decl-chk-${i}`);
-        return chk&&chk.checked;
-      });
+      const declSelected=issuers.filter((iss,i)=>{if(iss.type!=="公司")return false;const chk=document.getElementById(`decl-chk-${i}`);return chk&&chk.checked;});
       if(declSelected.length===0){showMsg("聲明書：請至少勾選一位公司發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       const holder=document.getElementById("decl-holder").value||"";
       const account=document.getElementById("decl-account").value||"";
@@ -906,37 +842,25 @@ async function generate(){
         zip.file(`撥款個人聲明書_${iss.name}.pdf`,bytes);
       }
     }
-
     if(doPledge){
       const pledgeVer=document.getElementById("pledge-version").value;
-      const pledgeSelected=issuers.filter((iss,i)=>{
-        const chk=document.getElementById(`pledge-chk-${i}`);
-        return chk&&chk.checked;
-      });
+      const pledgeSelected=issuers.filter((iss,i)=>{const chk=document.getElementById(`pledge-chk-${i}`);return chk&&chk.checked;});
       if(pledgeSelected.length===0){showMsg("切結書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       if(pledgeSelected.length>2){showMsg("切結書：最多只能選2位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       const bytes=await makePledgePDF(fontBytes,pledgeBytes,pledgeSelected);
-      const vLabel=pledgeVer==="tw"?"台灣聯合":"合經";
-      const names=pledgeSelected.map(iss=>iss.name).join("_");
-      zip.file(`不動產一順位切結書_${vLabel}_${names}.pdf`,bytes);
+      zip.file(`不動產一順位切結書_${pledgeVer==="tw"?"台灣聯合":"合經"}_${pledgeSelected.map(i=>i.name).join("_")}.pdf`,bytes);
     }
-
     if(doPromise){
       const promiseAccount=document.getElementById("promise-account").value||"";
       const promiseAmtRaw=document.getElementById("promise-amt").value;
       if(!promiseAmtRaw||parseInt(promiseAmtRaw)<=0){showMsg("承諾書：請填寫金額","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       const promiseAmt=toChinese(promiseAmtRaw);
-      const promiseSelected=issuers.filter((iss,i)=>{
-        const chk=document.getElementById(`promise-chk-${i}`);
-        return chk&&chk.checked;
-      });
+      const promiseSelected=issuers.filter((iss,i)=>{const chk=document.getElementById(`promise-chk-${i}`);return chk&&chk.checked;});
       if(promiseSelected.length===0){showMsg("承諾書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       if(promiseSelected.length>4){showMsg("承諾書：最多只能選4位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       const bytes=await makePromisePDF(fontBytes,promiseBytes,promiseSelected,promiseAccount,promiseAmt);
-      const names=promiseSelected.map(iss=>iss.name).join("_");
-      zip.file(`承諾書_${names}.pdf`,bytes);
+      zip.file(`承諾書_${promiseSelected.map(i=>i.name).join("_")}.pdf`,bytes);
     }
-
     const files=Object.keys(zip.files);
     if(files.length===1){
       const fname=files[0];
@@ -951,7 +875,6 @@ async function generate(){
       const a=document.createElement("a");
       a.href=url;a.download=`BZNK文件_${namePrefix}_${amtStr}元.zip`;a.click();URL.revokeObjectURL(url);
     }
-
     showMsg(`✓ 已下載 ${files.length} 份文件`,"ok");
   }catch(e){
     showMsg("產生失敗："+e.message,"err");
