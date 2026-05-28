@@ -367,14 +367,12 @@ async function getOcrWorker() {
     throw new Error("Tesseract.js 未載入，請確認網路連線後重新整理頁面");
   }
 
+  // ⚠️ CDN 版本請勿手動指定 workerPath / corePath / langPath
+  // 手動指定版本號不符會導致 WASM 初始化失敗（SetImageFile null 錯誤）
+  // CDN 版本的 Tesseract.js 會自動配置相容的路徑
   _ocrWorkerPromise = Tesseract.createWorker(["chi_tra", "eng"], 1, {
-    workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/worker.min.js",
-    langPath:   "https://tessdata.projectnaptha.com/4.0.0",
-    corePath:   "https://cdn.jsdelivr.net/npm/tesseract.js-core@4/tesseract-core.wasm.js",
     logger: m => {
-      if (m.status === "recognizing text") {
-        console.log(`[OCR] 辨識中 ${Math.round(m.progress * 100)}%`);
-      }
+      if (m.status) console.log(`[OCR] ${m.status} ${m.progress != null ? Math.round(m.progress*100)+"%" : ""}`);
     }
   });
 
