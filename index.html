@@ -219,8 +219,10 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
   <button class="gen-btn" id="genBtn" onclick="generate()">產生並下載文件</button>
 </div>
 
-<!-- Tesseract.js 4：明確指定所有 CDN 路徑，確保 GitHub Pages 可正常運作 -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<!-- Tesseract.js v2：比 v4 更穩定，不依賴 WASM 路徑配置，GitHub Pages 可正常使用 -->
+<script src="https://unpkg.com/tesseract.js@2/dist/tesseract.min.js"></script>
+<!-- PDF.js：讓公司變更登記表可以直接上傳 PDF，自動取第一頁轉圖後 OCR -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -275,11 +277,11 @@ function ocrSectionHtml(i, iss) {
       <div class="ocr-btns">
         <label class="scan-lbl${done?" done":""}" for="ocr-co-${i}">
           ${done?"✓ 已掃描":"📄 上傳變更登記表第一頁"}
-          <input type="file" id="ocr-co-${i}" accept="image/*" style="display:none" onchange="scanCompanyDoc(${i},this)">
+          <input type="file" id="ocr-co-${i}" accept="image/*,.pdf,application/pdf" style="display:none" onchange="scanCompanyDoc(${i},this)">
         </label>
       </div>
       <div class="ocr-hint">
-        支援圖片格式（JPG / PNG / HEIC 等）。<br>
+        支援圖片（JPG / PNG / HEIC 等）或 PDF 檔，PDF 會自動取第一頁。<br>
         自動辨識：公司名稱、統一編號、代表人、公司地址。<br>
         請確保第一頁完整入鏡、文字清晰。
       </div>
@@ -354,7 +356,15 @@ function renderIssuers(){
   });
 }
 
-// ── OCR Worker 管理 ───────────────────────────────────────────────────────────
+// ── PDF.js 初始化 ─────────────────────────────────────────────────────────────
+// 設定 PDF.js worker（讓 PDF 在瀏覽器中解析）
+if (typeof pdfjsLib !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+// ── OCR Worker 管理（Tesseract.js v2）────────────────────────────────────────
+// 使用 v2 API：load → loadLanguage → initialize，比 v4 更穩定
 
 let _ocrWorker = null;
 let _ocrWorkerPromise = null;
@@ -367,17 +377,43 @@ async function getOcrWorker() {
     throw new Error("Tesseract.js 未載入，請確認網路連線後重新整理頁面");
   }
 
-  // ⚠️ CDN 版本請勿手動指定 workerPath / corePath / langPath
-  // 手動指定版本號不符會導致 WASM 初始化失敗（SetImageFile null 錯誤）
-  // CDN 版本的 Tesseract.js 會自動配置相容的路徑
-  _ocrWorkerPromise = Tesseract.createWorker(["chi_tra", "eng"], 1, {
-    logger: m => {
-      if (m.status) console.log(`[OCR] ${m.status} ${m.progress != null ? Math.round(m.progress*100)+"%" : ""}`);
-    }
-  });
+  _ocrWorkerPromise = (async () => {
+    const worker = Tesseract.createWorker({
+      logger: m => {
+        if (m.status) console.log(`[OCR] ${m.status} ${m.progress != null ? Math.round(m.progress*100)+"%" : ""}`);
+      }
+    });
+    await worker.load();
+    await worker.loadLanguage("chi_tra+eng");
+    await worker.initialize("chi_tra+eng");
+    return worker;
+  })();
 
   _ocrWorker = await _ocrWorkerPromise;
   return _ocrWorker;
+}
+
+// ── 檔案轉 OCR 輸入（支援圖片 + PDF）────────────────────────────────────────
+// PDF 檔：用 PDF.js 渲染第一頁到 canvas，轉為 dataURL 再 OCR
+// 圖片檔：直接轉 dataURL
+
+async function fileToOcrInput(file) {
+  if (file.type === "application/pdf") {
+    if (typeof pdfjsLib === "undefined") {
+      throw new Error("PDF.js 未載入，請確認網路連線後重新整理頁面");
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1);  // 只取第一頁
+    const scale = 2.5;  // 放大倍率，倍數越高 OCR 品質越好
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    return canvas.toDataURL("image/png");
+  }
+  return fileToDataURL(file);
 }
 
 function fileToDataURL(file) {
@@ -425,7 +461,7 @@ async function scanIdCard(i, side, inputEl) {
   renderIssuers();
 
   try {
-    const dataURL = await fileToDataURL(file);
+    const dataURL = await fileToOcrInput(file);
     const worker  = await getOcrWorker();
     const { data: { text } } = await worker.recognize(dataURL);
     const extracted = side === "front" ? parseIdFront(text) : parseIdBack(text);
@@ -452,7 +488,7 @@ async function scanCompanyDoc(i, inputEl) {
   renderIssuers();
 
   try {
-    const dataURL = await fileToDataURL(file);
+    const dataURL = await fileToOcrInput(file);   // 支援 PDF 與圖片
     const worker  = await getOcrWorker();
     const { data: { text } } = await worker.recognize(dataURL);
     const extracted = parseCompanyDoc(text);
