@@ -269,6 +269,19 @@ function ocrStatusHtml(iss) {
   return `<div class="ocr-status ${cls}">${iss.ocrStatus}</div>`;
 }
 
+// 顯示 OCR 原始辨識文字（可展開，方便除錯和回報問題）
+function ocrRawHtml(iss) {
+  if (!iss.ocrRawText) return "";
+  const escaped = iss.ocrRawText
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return `<details style="margin-top:6px">
+    <summary style="font-size:10px;color:#99a;cursor:pointer;user-select:none">
+      🔍 原始辨識文字（點擊展開，辨識不正確時可截圖回報）
+    </summary>
+    <pre style="font-size:10px;color:#556;background:#f0f0ee;border-radius:5px;padding:8px;margin-top:4px;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto">${escaped}</pre>
+  </details>`;
+}
+
 function ocrSectionHtml(i, iss) {
   if (iss.type === "公司") {
     const done = iss.ocrScanned && iss.ocrScanned.company;
@@ -286,6 +299,7 @@ function ocrSectionHtml(i, iss) {
         請確保第一頁完整入鏡、文字清晰。
       </div>
       ${ocrStatusHtml(iss)}
+      ${ocrRawHtml(iss)}
     </div>`;
   } else {
     const frontDone = iss.ocrScanned && iss.ocrScanned.front;
@@ -307,6 +321,7 @@ function ocrSectionHtml(i, iss) {
         首次使用需下載繁體中文語言包（約 20MB），之後瀏覽器會快取。
       </div>
       ${ocrStatusHtml(iss)}
+      ${ocrRawHtml(iss)}
     </div>`;
   }
 }
@@ -425,7 +440,7 @@ function fileToDataURL(file) {
   });
 }
 
-function applyOcrResult(i, extracted, side) {
+function applyOcrResult(i, extracted, side, rawText) {
   const filled = [];
   if (extracted.name)    { issuers[i].name    = extracted.name;    filled.push("名稱「" + extracted.name + "」"); }
   if (extracted.id)      { issuers[i].id      = extracted.id;      filled.push("編號「" + extracted.id + "」"); }
@@ -434,12 +449,15 @@ function applyOcrResult(i, extracted, side) {
 
   if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
   issuers[i].ocrScanned[side] = true;
+  // 儲存原始 OCR 文字供除錯顯示
+  issuers[i].ocrRawText = (issuers[i].ocrRawText || "") +
+    "── " + side + " ──\n" + (rawText || "") + "\n\n";
 
   if (filled.length > 0) {
     issuers[i].ocrStatus = "✓ 已填入：" + filled.join("、") + "　請核對是否正確";
     issuers[i].ocrOk = true;
   } else {
-    issuers[i].ocrStatus = "⚠️ 未辨識到欄位，圖片可能不清晰或方向不對，請手動填寫";
+    issuers[i].ocrStatus = "⚠️ 未辨識到欄位，請查看下方「原始辨識文字」確認 OCR 讀到的內容";
     issuers[i].ocrOk = false;
   }
 
@@ -464,8 +482,9 @@ async function scanIdCard(i, side, inputEl) {
     const dataURL = await fileToOcrInput(file);
     const worker  = await getOcrWorker();
     const { data: { text } } = await worker.recognize(dataURL);
+    console.log("[OCR raw text]", text);
     const extracted = side === "front" ? parseIdFront(text) : parseIdBack(text);
-    applyOcrResult(i, extracted, side);
+    applyOcrResult(i, extracted, side, text);
   } catch(e) {
     console.error("[OCR scanIdCard error]", e);
     if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
@@ -491,8 +510,9 @@ async function scanCompanyDoc(i, inputEl) {
     const dataURL = await fileToOcrInput(file);   // 支援 PDF 與圖片
     const worker  = await getOcrWorker();
     const { data: { text } } = await worker.recognize(dataURL);
+    console.log("[OCR raw text]", text);
     const extracted = parseCompanyDoc(text);
-    applyOcrResult(i, extracted, "company");
+    applyOcrResult(i, extracted, "company", text);
   } catch(e) {
     console.error("[OCR scanCompanyDoc error]", e);
     if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
@@ -505,26 +525,48 @@ async function scanCompanyDoc(i, inputEl) {
 }
 
 // ── 解析：身分證正面 ──────────────────────────────────────────────────────────
+// Tesseract OCR 對中文的輸出可能帶有字元間空格，例如 "黃 王 權"
+// 策略：多種 pattern + 寬鬆比對，任一成功即採用
 
 function parseIdFront(rawText) {
-  console.log("[OCR id-front]", rawText);
   const result = {};
+  // 移除 \r，統一換行
   const text = rawText.replace(/\r/g, "\n");
+  // 把每個字之間可能插入的空格壓縮後用來搜尋（OCR 常見問題）
+  const compact = text.replace(/\s+/g, " ");
 
+  // ① 身分證字號：1 大寫英文 + 9 數字，最可靠
+  const idMatch = text.match(/[A-Z]\d{9}/);
+  if (idMatch) result.id = idMatch[0];
+
+  // ② 姓名：在「姓名」標籤後，取 2~6 個中文字
+  //    容許「姓 名」「姓名」「姓　名」等各種空白變體
   const namePatterns = [
-    /姓\s*名\s+([^\n出性統發國\d]+)/,
-    /姓名\s+([^\n出性統發國\d]{2,7})/,
+    /姓\s*名\s+([一-鿿\s]{2,20}?)(?:\s*(?:出|性|統|發|民|國|\d))/,
+    /姓\s*名\s+([一-鿿][一-鿿\s]{0,10}[一-鿿])/,
+    /姓\s*名\s+([一-鿿]{2,6})/,
   ];
   for (const p of namePatterns) {
-    const m = text.match(p);
+    const m = compact.match(p);
     if (m) {
-      const name = m[1].trim().replace(/\s+/g,"").replace(/[^一-鿿㐀-䶿]/g,"");
-      if (name.length >= 2 && name.length <= 7) { result.name = name; break; }
+      const name = m[1].replace(/\s+/g,"");
+      if (name.length >= 2 && name.length <= 6) { result.name = name; break; }
     }
   }
 
-  const idMatch = text.match(/[A-Z]\d{9}/);
-  if (idMatch) result.id = idMatch[0];
+  // ③ Fallback：逐行找出 2~5 個中文字、不含常見非姓名關鍵字的行
+  if (!result.name) {
+    const SKIP = /中華|國民|身分|民國|出生|性別|統一|發證|編號|年月|年|月|日|換發/;
+    const lines = text.split("\n");
+    for (const raw of lines) {
+      const c = raw.replace(/\s+/g,"");
+      const cjk = c.replace(/[^一-鿿㐀-䶿]/g,"");
+      if (cjk.length >= 2 && cjk.length <= 5 && !SKIP.test(c)) {
+        result.name = cjk;
+        break;
+      }
+    }
+  }
 
   return result;
 }
@@ -532,23 +574,36 @@ function parseIdFront(rawText) {
 // ── 解析：身分證背面 ──────────────────────────────────────────────────────────
 
 function parseIdBack(rawText) {
-  console.log("[OCR id-back]", rawText);
   const result = {};
   const text = rawText.replace(/\r/g, "\n");
 
-  const labeled = text.match(/(?:戶籍地址|居住地址|地\s*址)[：:\s]+([^\n]+)/);
+  // ① 標籤後直接有地址
+  const labeled = text.match(/(?:戶籍地址|居住地址|地\s*址)\s*[:：]?\s*([^\n]{6,})/);
   if (labeled) {
     result.address = labeled[1].trim().replace(/\s+/g,"");
     return result;
   }
 
-  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l.length>6);
+  // ② 逐行找：含「市|縣」＋「路|街|巷|弄」＋數字
+  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l.length>4);
   for (const line of lines) {
     const c = line.replace(/\s+/g,"");
-    if (/[市縣]/.test(c) && /[區鄉鎮]/.test(c) && /[路街巷弄]/.test(c) && /\d/.test(c) && c.length >= 10) {
+    const hasCity  = /[市縣]/.test(c);
+    const hasRoad  = /[路街巷弄]/.test(c);
+    const hasNum   = /\d/.test(c);
+    if (hasCity && hasRoad && hasNum && c.length >= 8) {
       result.address = c;
       break;
     }
+  }
+
+  // ③ 更寬鬆 fallback：含「區|鄉|鎮」＋數字的最長行
+  if (!result.address) {
+    const candidates = lines
+      .map(l=>l.replace(/\s+/g,""))
+      .filter(l=>/[區鄉鎮]/.test(l) && /\d/.test(l) && l.length>=6)
+      .sort((a,b)=>b.length-a.length);
+    if (candidates[0]) result.address = candidates[0];
   }
 
   return result;
