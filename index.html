@@ -163,7 +163,11 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
             <input id="promise-account" type="text" placeholder="銀行帳號">
           </div>
           <div class="field">
-            <label>金額（中文大寫，自動帶入）</label>
+            <label>承諾書金額（數字）</label>
+            <input id="promise-amt" type="number" min="1" placeholder="例：2500000" oninput="updatePromiseAmt()">
+          </div>
+          <div class="field">
+            <label>大寫預覽</label>
             <input id="promise-amt-preview" readonly>
           </div>
         </div>
@@ -343,8 +347,12 @@ function updatePreview(){
   if(!amt){bar.style.display="none";return;}
   bar.style.display="flex";
   bar.innerHTML=`<span>金額：<strong>NT$ ${parseInt(amt).toLocaleString()}</strong></span><span>大寫：<strong>${toChinese(amt)||"—"}</strong></span><span>發票人：<strong>${issuers.length} 位</strong></span>`;
-  const pa=document.getElementById("promise-amt-preview");
-  if(pa)pa.value=toChinese(amt)||"";
+}
+
+function updatePromiseAmt(){
+  const v=document.getElementById("promise-amt").value;
+  const el=document.getElementById("promise-amt-preview");
+  if(el)el.value=toChinese(v)||"";
 }
 
 function showMsg(text,type){
@@ -757,7 +765,9 @@ async function generate(){
     // 承諾書
     if(doPromise){
       const promiseAccount=document.getElementById("promise-account").value||"";
-      const promiseAmt=toChinese(amt);
+      const promiseAmtRaw=document.getElementById("promise-amt").value;
+      if(!promiseAmtRaw||parseInt(promiseAmtRaw)<=0){showMsg("承諾書：請填寫金額","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const promiseAmt=toChinese(promiseAmtRaw);
       const promiseSelected=issuers.filter((iss,i)=>{
         const chk=document.getElementById(`promise-chk-${i}`);
         return chk&&chk.checked;
