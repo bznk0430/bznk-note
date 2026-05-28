@@ -48,6 +48,19 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
 .msg{font-size:13px;padding:10px 14px;border-radius:8px;text-align:center}
 .msg-err{background:#fce8e8;color:#a32d2d}
 .msg-ok{background:#e1f5ee;color:#085041}
+
+/* ── OCR 身分證掃描區塊 ── */
+.ocr-section{margin-top:4px;padding:10px 12px;background:#f2f6ff;border-radius:8px;border:0.5px solid rgba(60,100,240,0.15)}
+.ocr-title{font-size:11px;font-weight:600;color:#334;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.ocr-btns{display:flex;gap:8px;flex-wrap:wrap}
+.scan-lbl{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:0.5px solid rgba(60,100,240,0.3);border-radius:7px;font-size:12px;color:#335;cursor:pointer;background:#fff;transition:background 0.12s;user-select:none}
+.scan-lbl:hover{background:#e8eeff}
+.scan-lbl.done{border-color:rgba(8,80,65,0.35);color:#085041;background:#eaf7f2}
+.ocr-hint{font-size:10px;color:#99a;margin-top:5px}
+.ocr-status{font-size:11px;margin-top:6px;padding:5px 9px;border-radius:6px;background:rgba(0,0,0,0.04);color:#888;line-height:1.4}
+.ocr-status.ok{color:#085041;background:#e1f5ee}
+.ocr-status.warn{color:#7a4e00;background:#fff6e0}
+.ocr-status.loading{color:#335;background:#e8eeff}
 </style>
 </head>
 <body>
@@ -203,6 +216,8 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
   <button class="gen-btn" id="genBtn" onclick="generate()">產生並下載文件</button>
 </div>
 
+<!-- Tesseract.js（本地端OCR，繁體中文，不需外部AI API） -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -231,7 +246,7 @@ let issuers=[];
 
 function addIssuer(){
   if(issuers.length>=5){showMsg("最多只能有5位發票人","err");return;}
-  issuers.push({type:"個人",name:"",id:"",address:"",rep:""});
+  issuers.push({type:"個人",name:"",id:"",address:"",rep:"",ocrStatus:"",ocrOk:false,ocrScanned:{}});
   renderIssuers();
   renderAuthIssuerList();
   renderMortIssuerList();
@@ -244,6 +259,41 @@ function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerLis
 function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();}updatePreview();}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
 function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
+
+// ── OCR 區塊 HTML 產生 ──────────────────────────────────────────────────────
+
+function ocrSectionHtml(i, iss) {
+  if (iss.type === "公司") return "";
+
+  // 按鈕狀態
+  const frontDone = iss.ocrScanned && iss.ocrScanned.front;
+  const backDone  = iss.ocrScanned && iss.ocrScanned.back;
+
+  let statusHtml = "";
+  if (iss.ocrStatus) {
+    let cls = "";
+    if (iss.ocrStatus.startsWith("✓")) cls = "ok";
+    else if (iss.ocrStatus.startsWith("⏳")) cls = "loading";
+    else cls = "warn";
+    statusHtml = `<div class="ocr-status ${cls}">${iss.ocrStatus}</div>`;
+  }
+
+  return `<div class="ocr-section">
+    <div class="ocr-title">🪪 身分證掃描自動填入（本地辨識・不限流量）</div>
+    <div class="ocr-btns">
+      <label class="scan-lbl${frontDone?" done":""}" for="ocr-f-${i}">
+        ${frontDone?"✓":"📷"} 正面（姓名＋身分證字號）
+        <input type="file" id="ocr-f-${i}" accept="image/*" style="display:none" onchange="scanId(${i},'front',this)">
+      </label>
+      <label class="scan-lbl${backDone?" done":""}" for="ocr-b-${i}">
+        ${backDone?"✓":"📷"} 背面（戶籍地址）
+        <input type="file" id="ocr-b-${i}" accept="image/*" style="display:none" onchange="scanId(${i},'back',this)">
+      </label>
+    </div>
+    <div class="ocr-hint">請確認圖片文字清晰、方向正確（背面請翻正後拍攝）。辨識完成後請核對欄位資料。</div>
+    ${statusHtml}
+  </div>`;
+}
 
 function renderIssuers(){
   const wrap=document.getElementById("issuers");
@@ -284,10 +334,167 @@ function renderIssuers(){
           <label>地址</label>
           <input value="${esc(iss.address)}" placeholder="台中市大里區..." oninput="setIssuer(${i},'address',this.value)">
         </div>
-      </div>`;
+      </div>
+      ${ocrSectionHtml(i, iss)}`;
     wrap.appendChild(div);
   });
 }
+
+// ── OCR 核心功能 ─────────────────────────────────────────────────────────────
+
+let _ocrWorker = null;
+let _ocrWorkerPromise = null;
+
+async function getOcrWorker() {
+  if (_ocrWorker) return _ocrWorker;
+  if (_ocrWorkerPromise) return await _ocrWorkerPromise;
+  _ocrWorkerPromise = Tesseract.createWorker(["chi_tra", "eng"], 1, {
+    logger: m => {
+      if (m.status === "loading tesseract core" || m.status === "loading language traineddata") {
+        console.log("[OCR] " + m.status + " " + Math.round((m.progress||0)*100) + "%");
+      }
+    }
+  });
+  _ocrWorker = await _ocrWorkerPromise;
+  return _ocrWorker;
+}
+
+async function scanId(i, side, inputEl) {
+  if (!inputEl.files || !inputEl.files[0]) return;
+  const file = inputEl.files[0];
+
+  issuers[i].ocrStatus = side === "front"
+    ? "⏳ 辨識正面中…（首次使用需下載語言包 ~20MB，請稍候）"
+    : "⏳ 辨識背面中…";
+  issuers[i].ocrOk = false;
+  renderIssuers();
+
+  try {
+    const worker = await getOcrWorker();
+    const { data: { text } } = await worker.recognize(file);
+
+    let extracted = {};
+    if (side === "front") {
+      extracted = parseIdFront(text);
+    } else {
+      extracted = parseIdBack(text);
+    }
+
+    const filled = [];
+
+    // 只在欄位尚未填寫時自動帶入（避免覆蓋已修改的資料）
+    if (extracted.name) {
+      issuers[i].name = extracted.name;
+      filled.push("姓名「" + extracted.name + "」");
+    }
+    if (extracted.id) {
+      issuers[i].id = extracted.id;
+      filled.push("身分證字號「" + extracted.id + "」");
+    }
+    if (extracted.address) {
+      issuers[i].address = extracted.address;
+      filled.push("地址");
+    }
+
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned[side] = true;
+
+    if (filled.length > 0) {
+      issuers[i].ocrStatus = "✓ 已填入：" + filled.join("、") + "　請核對是否正確";
+      issuers[i].ocrOk = true;
+    } else {
+      issuers[i].ocrStatus = "⚠️ 未能辨識欄位，圖片可能模糊或方向不對，請手動填寫";
+      issuers[i].ocrOk = false;
+    }
+
+  } catch(e) {
+    console.error("[OCR error]", e);
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned[side] = false;
+    issuers[i].ocrStatus = "❌ 辨識失敗，請手動填寫（" + (e.message||"未知錯誤") + "）";
+    issuers[i].ocrOk = false;
+  }
+
+  renderIssuers();
+  renderAuthIssuerList();
+  renderMortIssuerList();
+  renderDeclIssuerList();
+  renderPledgeIssuerList();
+  renderPromiseIssuerList();
+  updatePreview();
+}
+
+// ── 解析身分證正面 ────────────────────────────────────────────────────────────
+function parseIdFront(rawText) {
+  console.log("[OCR front raw]", rawText);
+  const result = {};
+  const text = rawText.replace(/\r/g, "\n");
+
+  // 姓名：「姓 名」後接中文字，排除常見欄位關鍵字
+  const namePatterns = [
+    /姓\s*名\s+([^\n出性統發國0-9A-Z]+)/,
+    /姓名\s*([^\n出性統發國0-9A-Z]{2,6})/,
+  ];
+  for (const p of namePatterns) {
+    const m = text.match(p);
+    if (m) {
+      // 只保留中文字（去除空格與OCR雜訊）
+      const raw = m[1].trim();
+      const name = raw.replace(/\s+/g, "").replace(/[^一-鿿㐀-䶿]/g, "");
+      if (name.length >= 2 && name.length <= 7) {
+        result.name = name;
+        break;
+      }
+    }
+  }
+
+  // 身分證字號：1碼大寫英文 + 9碼數字
+  const idMatch = text.match(/[A-Z]\d{9}/);
+  if (idMatch) result.id = idMatch[0];
+
+  return result;
+}
+
+// ── 解析身分證背面（戶籍地址）────────────────────────────────────────────────
+function parseIdBack(rawText) {
+  console.log("[OCR back raw]", rawText);
+  const result = {};
+  const text = rawText.replace(/\r/g, "\n");
+
+  // 嘗試找「戶籍地址」或「居住地址」標籤後的文字
+  const labeledMatch = text.match(/(?:戶籍地址|居住地址|地\s*址)[：:\s]+([^\n]+)/);
+  if (labeledMatch) {
+    result.address = labeledMatch[1].trim().replace(/\s+/g, "");
+    return result;
+  }
+
+  // 逐行找符合台灣地址格式的行（包含市/縣 且 包含路/街/巷/弄 且 包含數字）
+  const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 6);
+  for (const line of lines) {
+    const clean = line.replace(/\s+/g, "");
+    const hasCity    = /[市縣]/.test(clean);
+    const hasDistrict= /[區鄉鎮市]/.test(clean);
+    const hasRoad    = /[路街巷弄]/.test(clean);
+    const hasNum     = /\d/.test(clean);
+    if (hasCity && hasDistrict && hasRoad && hasNum && clean.length >= 8) {
+      result.address = clean;
+      break;
+    }
+  }
+
+  // fallback：最長一行當作地址（OCR 品質差時）
+  if (!result.address) {
+    const longest = lines
+      .map(l => l.replace(/\s+/g,""))
+      .filter(l => l.length >= 8 && /\d/.test(l))
+      .sort((a,b) => b.length - a.length)[0];
+    if (longest) result.address = longest;
+  }
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function renderIssuerCheckList(listId, chkPrefix, filterFn){
   const list=document.getElementById(listId);
@@ -407,7 +614,6 @@ async function makeNotePDF(fontBytes, blankBytes, amt){
 }
 
 async function makeAuthPDF(fontBytes, authBytes, issList){
-  // 委託書：將多位發票人逐行填入（最多7行）
   const rowMidYs=[444.0,474.2,504.4,534.5,564.7,594.8,625.0];
   const {PDFDocument,rgb}=PDFLib;
   const pdfDoc=await PDFDocument.load(authBytes);
@@ -434,11 +640,6 @@ async function makeAuthPDF(fontBytes, authBytes, issList){
 }
 
 async function makeMortPDF(fontBytes, mortBytes, iss){
-  // 抵押權設定種類約定書：填入擔保物提供人、統編/身分證、住址
-  // 台灣聯合版 y: 提供人=322.9, 統編=382.9, 住址=402.8
-  // 合經版     y: 提供人=383.4, 統編=443.4, 住址=463.3
-  // x: 提供人冒號後=344.5, 統編冒號後=316.6, 住址冒號後=313.3
-  // 右邊界=541, 字體14pt
   const {PDFDocument,rgb}=PDFLib;
   const pdfDoc=await PDFDocument.load(mortBytes);
   pdfDoc.registerFontkit(fontkit);
@@ -453,14 +654,6 @@ async function makeMortPDF(fontBytes, mortBytes, iss){
     page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});
   }
 
-  // 判斷版本（由 y 位置判斷）
-  // 台灣聯合版: 提供人 y≈322.9；合經版: 提供人 y≈383.4
-  // 這裡用傳入的 PDF bytes 本身，不需要判斷，座標已在建立時決定
-  const maxW = 541 - 344.5; // ~196pt
-
-  // 從 PDF 文字判斷版本（提供人標籤的 y）
-  // 我們直接用傳入 mortBytes 對應的座標
-  // 台灣聯合版座標
   const yProvider = 322.9, yId = 382.9, yAddr = 402.8;
 
   dt(iss.name,   344.5, yProvider, 541-344.5);
@@ -493,14 +686,6 @@ async function makeMortPDFHJ(fontBytes, mortBytes, iss){
 }
 
 async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, amtChinese, holder, account){
-  // 聲明書欄位位置（字體 20pt）：
-  // 日期：年前 x=136~156, 月前 x=177~192, 日前 x=213~228, y=124
-  // 案件編號：x=79~216, y=154
-  // 金額大寫：x=336~444, y=154
-  // 公司名稱：冒號後 x=99, y=560.8
-  // 統編：冒號後 x=99, y=598.7
-  // 負責人：冒號後 x=119, y=636.7
-
   const {PDFDocument,rgb}=PDFLib;
   const pdfDoc=await PDFDocument.load(declBytes);
   pdfDoc.registerFontkit(fontkit);
@@ -508,7 +693,7 @@ async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, 
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
 
-  const SZ=14; // 填入字體稍小於原始20pt，避免超出
+  const SZ=14;
   function dt(text,x,yTop,maxW,sz=SZ){
     if(!text)return;
     let s=sz;
@@ -523,23 +708,17 @@ async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, 
     page.drawText(text,{x:x0+(mw-tw)/2,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});
   }
 
-  // 日期（置中在年月日格子中）
   dc(year,  136, 156.7, 124);
   dc(month, 177, 192.3, 124);
   dc(day,   213, 227.9, 124);
 
-  // 案件編號（x=79~216）
   dt(caseNo, 79, 154, 216-79);
-
-  // 金額大寫（x=336~444，「元」前面的空間）
   dt(amtChinese, 336, 154, 444-336-5);
 
-  // 公司資訊
-  dt(iss.name, 99, 560.8, 559.4-99);   // 公司名稱，右邊界~559
-  dt(iss.id,   99, 598.7, 559.4-99);   // 統編
-  dt(iss.rep,  119, 636.7, 559.4-119); // 負責人
+  dt(iss.name, 99, 560.8, 559.4-99);
+  dt(iss.id,   99, 598.7, 559.4-99);
+  dt(iss.rep,  119, 636.7, 559.4-119);
 
-  // 戶名、帳號（x=89.4~559, y=311.7 / 341.4）
   dt(holder,  89.4, 311.7, 559.4-89.4);
   dt(account, 89.4, 341.4, 559.4-89.4);
 
@@ -547,20 +726,16 @@ async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, 
 }
 
 async function makePledgePDF(fontBytes, pledgeBytes, issList){
-  // 切結書第2頁，兩組欄位：
-  // 第1人: 立切結書人 y=399.1 x=325.3, 統編 y=435.1 x=315.1, 身分證 y=453.1 x=327.1
-  // 第2人: 立切結書人 y=489.1 x=327.1, 統編 y=525.1 x=315.1, 身分證 y=543.1 x=327.1
   const slots = [
     {yName:399.1, xName:325.3, yId:435.1, xId:315.1, yIdno:453.1, xIdno:327.1},
     {yName:489.1, xName:327.1, yId:525.1, xId:315.1, yIdno:543.1, xIdno:327.1},
   ];
-  const maxW = 559 - 327.1; // ~232pt
 
   const {PDFDocument,rgb}=PDFLib;
   const pdfDoc=await PDFDocument.load(pledgeBytes);
   pdfDoc.registerFontkit(fontkit);
   const font=await pdfDoc.embedFont(fontBytes);
-  const page=pdfDoc.getPages()[1]; // 第2頁
+  const page=pdfDoc.getPages()[1];
   const H=page.getHeight();
 
   function dt(text,x,yTop,maxW,sz=10){
@@ -573,14 +748,11 @@ async function makePledgePDF(fontBytes, pledgeBytes, issList){
   issList.slice(0,2).forEach((iss,i)=>{
     const slot=slots[i];
     const isCo=iss.type==="公司";
-    // 立切結書人：公司→公司名稱+負責人，個人→姓名
     const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
     dt(nameText, slot.xName, slot.yName, 559-slot.xName);
     if(isCo){
-      // 公司：統編填統一編號，身分證字號留白
       dt(iss.id, slot.xId, slot.yId, 559-slot.xId);
     } else {
-      // 個人：身分證填身分證字號，統編留白
       dt(iss.id, slot.xIdno, slot.yIdno, 559-slot.xIdno);
     }
   });
@@ -589,12 +761,6 @@ async function makePledgePDF(fontBytes, pledgeBytes, issList){
 }
 
 async function makePromisePDF(fontBytes, promiseBytes, issList, account, amtChinese){
-  // 第1頁：附表二帳號 x=272~425 y=729.5，金額大寫 x=460~559 y=729.5
-  // 第2頁：4組立書人（最多4位）
-  //   立書人名稱: y=141.4/265.0/388.7/512.6 x=111
-  //   統編/身分證: y=165.9/289.6/413.2/537.1 x=179.7
-  //   地址: y=190.6/314.3/437.9/562.0 x=110.8
-
   const slots=[
     {yName:141.4,yId:165.9,yAddr:190.6},
     {yName:265.0,yId:289.6,yAddr:314.3},
@@ -618,17 +784,15 @@ async function makePromisePDF(fontBytes, promiseBytes, issList, account, amtChin
     page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
   }
 
-  // 第1頁：帳號 & 金額大寫
   dt(pg1, account,    272, 729.5, 425-272);
   dt(pg1, amtChinese, 460, 729.5, 559-460);
 
-  // 第2頁：各立書人
   issList.slice(0,4).forEach((iss,i)=>{
     const s=slots[i];
     const isCo=iss.type==="公司";
     const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
     dt(pg2, nameText,  111,   s.yName, 559-111);
-    dt(pg2, iss.id,    179.7, s.yId,   559-179.7);  // 統編或身分證同欄
+    dt(pg2, iss.id,    179.7, s.yId,   559-179.7);
     dt(pg2, iss.address, 110.8, s.yAddr, 559-110.8);
   });
 
@@ -688,13 +852,11 @@ async function generate(){
     const namePrefix=issuers[0]?.name||"未命名";
     const amtStr=parseInt(amt).toLocaleString();
 
-    // 本票
     if(doNote){
       const bytes=await makeNotePDF(fontBytes,blankBytes,amt);
       zip.file(`本票_${namePrefix}_${amtStr}元.pdf`,bytes);
     }
 
-    // 委託書（每位勾選的個人一份）
     if(doAuth){
       const individuals=issuers.filter(iss=>iss.type==="個人");
       const selected=individuals.filter((iss,i)=>{
@@ -709,7 +871,6 @@ async function generate(){
       zip.file(`財產所得查調委託書_${authNames}.pdf`,bytes);
     }
 
-    // 抵押權設定種類約定書
     if(doMort){
       const mortVer=document.getElementById("mort-version").value;
       const mortSelected=issuers.filter((iss,i)=>{
@@ -726,7 +887,6 @@ async function generate(){
       }
     }
 
-    // 撥款個人聲明書
     if(doDecl){
       const caseNo=document.getElementById("decl-case").value||"";
       const year=document.getElementById("decl-year").value||"";
@@ -747,7 +907,6 @@ async function generate(){
       }
     }
 
-    // 不動產一順位切結書
     if(doPledge){
       const pledgeVer=document.getElementById("pledge-version").value;
       const pledgeSelected=issuers.filter((iss,i)=>{
@@ -762,7 +921,6 @@ async function generate(){
       zip.file(`不動產一順位切結書_${vLabel}_${names}.pdf`,bytes);
     }
 
-    // 承諾書
     if(doPromise){
       const promiseAccount=document.getElementById("promise-account").value||"";
       const promiseAmtRaw=document.getElementById("promise-amt").value;
@@ -779,10 +937,8 @@ async function generate(){
       zip.file(`承諾書_${names}.pdf`,bytes);
     }
 
-    // 下載
     const files=Object.keys(zip.files);
     if(files.length===1){
-      // 只有一份，直接下載
       const fname=files[0];
       const bytes=await zip.files[fname].async("uint8array");
       const blob=new Blob([bytes],{type:"application/pdf"});
@@ -790,7 +946,6 @@ async function generate(){
       const a=document.createElement("a");
       a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
     } else {
-      // 多份，打包 ZIP
       const blob=await zip.generateAsync({type:"blob"});
       const url=URL.createObjectURL(blob);
       const a=document.createElement("a");
