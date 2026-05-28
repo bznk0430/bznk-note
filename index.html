@@ -431,12 +431,26 @@ async function preprocessForOcr(dataUrl, isPdf) {
       const d = imageData.data;
 
       for (let k = 0; k < d.length; k += 4) {
-        // 灰階（加權平均）
-        let gray = 0.299 * d[k] + 0.587 * d[k+1] + 0.114 * d[k+2];
-        // 溫和對比強化：不做二值化，保留字元細節
-        // 過度二值化會毀掉身分證字號等細緻字形（e.g. F104389722 → f1D438）
-        gray = Math.min(255, Math.max(0, (gray - 50) * 1.6));
-        d[k] = d[k+1] = d[k+2] = Math.round(gray);
+        const r = d[k], g = d[k+1], b = d[k+2];
+        // 亮度
+        const brightness = (r + g + b) / 3;
+        // 飽和度：身分證彩色底紋的飽和度遠高於黑色文字（文字飽和度 ≈ 0）
+        const maxC = Math.max(r, g, b);
+        const minC = Math.min(r, g, b);
+        const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
+
+        let out;
+        if (brightness < 110) {
+          // 深色 → 文字，保持暗（輕微加深）
+          out = Math.max(0, brightness - 20);
+        } else if (saturation > 0.12 || brightness > 210) {
+          // 彩色（底紋）或偏亮 → 轉白，壓制背景雜訊
+          out = 255;
+        } else {
+          // 中間灰 → 輕度對比拉升
+          out = Math.min(255, Math.max(0, (brightness - 80) * 1.8));
+        }
+        d[k] = d[k+1] = d[k+2] = Math.round(out);
         d[k+3] = 255;
       }
 
@@ -587,13 +601,17 @@ function parseIdFront(rawText) {
   // ② 姓名：在「姓名」標籤後，取 2~6 個中文字
   //    注意：「姓」常被 OCR 誤讀為「妓」（字形相似），需同時匹配兩者
   //    容許「姓 名」「妓 名」「姓名」等各種空白與誤讀變體
+  // OCR 常見字形誤讀：姓→妓/仿，名→名/#
+  // 例如「姓名 黃王權」可能被讀成「仿 # 黃 壬 棠」
   const namePatterns = [
-    // 策略 A：最嚴格，姓名後直到下一個欄位關鍵字（姓/妓 兩者都接受）
-    /[姓妓]\s*名\s+([一-鿿\s]{2,20}?)(?=\s*(?:出生|性別|統一|發證|民國|\d))/,
-    // 策略 B：姓名後接一連串中文（含字間空格）
-    /[姓妓]\s*名\s+([一-鿿][\s一-鿿]{0,12}[一-鿿])/,
-    // 策略 C：姓名後緊接 2-6 個中文字
-    /[姓妓]\s*名\s+([一-鿿]{2,6})/,
+    // 策略 A：最嚴格，label 後直到下一個欄位關鍵字
+    /[姓妓仿]\s*[名#＃]\s+([一-鿿\s]{2,20}?)(?=\s*(?:出生|性別|統一|發證|民國|\d))/,
+    // 策略 B：label 後接一連串中文（含字間空格）
+    /[姓妓仿]\s*[名#＃]\s+([一-鿿][\s一-鿿]{0,12}[一-鿿])/,
+    // 策略 C：label 後緊接 2-6 個中文字
+    /[姓妓仿]\s*[名#＃]\s+([一-鿿]{2,6})/,
+    // 策略 D：純「名」字 label（前面的「姓」字完全不見時）
+    /(?<![一-鿿])名\s+([一-鿿]{2,6})/,
   ];
   for (const p of namePatterns) {
     const m = compact.match(p);
