@@ -408,63 +408,34 @@ async function getOcrWorker() {
   return _ocrWorker;
 }
 
-// ── Canvas 影像前處理（提升 OCR 辨識率）─────────────────────────────────────
-// 步驟：放大 → 灰階 → 強化對比 → 二值化
-// 身分證底紋雜訊會被壓制，文字變成清晰黑白，大幅改善 Tesseract 準確率
+// ── 影像放大（純放大，不改色）────────────────────────────────────────────────
+// 只做放大到最小寬度，不做任何灰階/對比/二值化處理
+// 色彩操作（灰階、飽和度、二值化）在測試中反而破壞身分證文字，故移除
 
-async function preprocessForOcr(dataUrl, isPdf) {
+async function upscaleIfNeeded(dataUrl) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const MIN_W = 2400;  // 目標最小寬度（像素越多 OCR 越精確）
-      const scale = isPdf ? 1 : Math.max(1, MIN_W / img.naturalWidth);
-
+      const MIN_W = 2000;
+      if (img.naturalWidth >= MIN_W) {
+        resolve(dataUrl);   // 已夠大，直接回傳原圖
+        return;
+      }
+      const scale = MIN_W / img.naturalWidth;
       const canvas = document.createElement("canvas");
       canvas.width  = Math.round(img.naturalWidth  * scale);
       canvas.height = Math.round(img.naturalHeight * scale);
-
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      // 取得像素資料
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imageData.data;
-
-      for (let k = 0; k < d.length; k += 4) {
-        const r = d[k], g = d[k+1], b = d[k+2];
-        // 亮度
-        const brightness = (r + g + b) / 3;
-        // 飽和度：身分證彩色底紋的飽和度遠高於黑色文字（文字飽和度 ≈ 0）
-        const maxC = Math.max(r, g, b);
-        const minC = Math.min(r, g, b);
-        const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
-
-        let out;
-        if (brightness < 110) {
-          // 深色 → 文字，保持暗（輕微加深）
-          out = Math.max(0, brightness - 20);
-        } else if (saturation > 0.12 || brightness > 210) {
-          // 彩色（底紋）或偏亮 → 轉白，壓制背景雜訊
-          out = 255;
-        } else {
-          // 中間灰 → 輕度對比拉升
-          out = Math.min(255, Math.max(0, (brightness - 80) * 1.8));
-        }
-        d[k] = d[k+1] = d[k+2] = Math.round(out);
-        d[k+3] = 255;
-      }
-
-      ctx.putImageData(imageData, 0, 0);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL("image/png"));
     };
-    img.onerror = () => resolve(dataUrl); // 萬一失敗就用原圖
+    img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
 }
 
 // ── 檔案轉 OCR 輸入（支援圖片 + PDF）────────────────────────────────────────
-// PDF 檔：用 PDF.js 渲染第一頁到 canvas，轉為 dataURL 再 OCR
-// 圖片檔：直接轉 dataURL，再送入前處理
+// PDF 檔：用 PDF.js 渲染第一頁到 canvas（2.5x），轉為 dataURL 再 OCR
+// 圖片檔：直接轉 dataURL，必要時放大，保留原始色彩讓 Tesseract 自行判讀
 
 async function fileToOcrInput(file) {
   if (file.type === "application/pdf") {
@@ -473,20 +444,18 @@ async function fileToOcrInput(file) {
     }
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const page = await pdf.getPage(1);  // 只取第一頁
-    const scale = 2.5;  // 放大倍率，倍數越高 OCR 品質越好
+    const page = await pdf.getPage(1);
+    const scale = 2.5;
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement("canvas");
     canvas.width  = viewport.width;
     canvas.height = viewport.height;
     await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    const raw = canvas.toDataURL("image/png");
-    // PDF 已放大，只做灰階 + 對比強化
-    return preprocessForOcr(raw, true);
+    return canvas.toDataURL("image/png");
   }
-  // 圖片：先轉 dataURL，再放大 + 灰階 + 對比 + 二值化
+  // 圖片：保留原始色彩，僅在尺寸不足時放大
   const raw = await fileToDataURL(file);
-  return preprocessForOcr(raw, false);
+  return upscaleIfNeeded(raw);
 }
 
 function fileToDataURL(file) {
