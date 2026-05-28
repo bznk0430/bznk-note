@@ -131,6 +131,26 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
         <div style="font-size:11px;color:#aaa">帶入公司名稱、統編、負責人；金額自動帶入中文大寫。</div>
       </div>
     </div>
+    <div class="attach-item" id="attach-pledge">
+      <div class="attach-header" onclick="toggleAttach('pledge')">
+        <input type="checkbox" id="chk-pledge" onclick="event.stopPropagation();toggleAttach('pledge')">
+        <span class="attach-label">📄 不動產一順位切結書</span>
+      </div>
+      <div class="attach-body" id="body-pledge">
+        <div class="row" style="margin-bottom:4px">
+          <div class="field">
+            <label>版本</label>
+            <select id="pledge-version">
+              <option value="tw">台灣聯合版</option>
+              <option value="hj">合經版</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人（最多2位）：</div>
+        <div class="issuer-check-list" id="pledge-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">公司→帶入公司名稱+負責人及統編；個人→帶入姓名及身分證字號。</div>
+      </div>
+    </div>
     <div class="attach-item" id="attach-mort">
       <div class="attach-header" onclick="toggleAttach('mort')">
         <input type="checkbox" id="chk-mort" onclick="event.stopPropagation();toggleAttach('mort')">
@@ -191,10 +211,11 @@ function addIssuer(){
   renderAuthIssuerList();
   renderMortIssuerList();
   renderDeclIssuerList();
+  renderPledgeIssuerList();
   updatePreview();
 }
-function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();updatePreview();}
-function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();}updatePreview();}
+function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();updatePreview();}
+function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();}updatePreview();}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
 function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
 
@@ -270,6 +291,10 @@ function renderMortIssuerList(){
 
 function renderDeclIssuerList(){
   renderIssuerCheckList("decl-issuer-list","decl-chk",iss=>iss.type==="公司");
+}
+
+function renderPledgeIssuerList(){
+  renderIssuerCheckList("pledge-issuer-list","pledge-chk",()=>true);
 }
 
 function toggleAttach(id){
@@ -485,6 +510,48 @@ async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, 
   return await pdfDoc.save();
 }
 
+async function makePledgePDF(fontBytes, pledgeBytes, issList){
+  // 切結書第2頁，兩組欄位：
+  // 第1人: 立切結書人 y=399.1 x=325.3, 統編 y=435.1 x=315.1, 身分證 y=453.1 x=327.1
+  // 第2人: 立切結書人 y=489.1 x=327.1, 統編 y=525.1 x=315.1, 身分證 y=543.1 x=327.1
+  const slots = [
+    {yName:399.1, xName:325.3, yId:435.1, xId:315.1, yIdno:453.1, xIdno:327.1},
+    {yName:489.1, xName:327.1, yId:525.1, xId:315.1, yIdno:543.1, xIdno:327.1},
+  ];
+  const maxW = 559 - 327.1; // ~232pt
+
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(pledgeBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[1]; // 第2頁
+  const H=page.getHeight();
+
+  function dt(text,x,yTop,maxW,sz=10){
+    if(!text)return;
+    let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
+    page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
+  }
+
+  issList.slice(0,2).forEach((iss,i)=>{
+    const slot=slots[i];
+    const isCo=iss.type==="公司";
+    // 立切結書人：公司→公司名稱+負責人，個人→姓名
+    const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
+    dt(nameText, slot.xName, slot.yName, 559-slot.xName);
+    if(isCo){
+      // 公司：統編填統一編號，身分證字號留白
+      dt(iss.id, slot.xId, slot.yId, 559-slot.xId);
+    } else {
+      // 個人：身分證填身分證字號，統編留白
+      dt(iss.id, slot.xIdno, slot.yIdno, 559-slot.xIdno);
+    }
+  });
+
+  return await pdfDoc.save();
+}
+
 // ── 主產生流程 ────────────────────────────────────────────────────────────────
 
 async function generate(){
@@ -504,7 +571,8 @@ async function generate(){
   const doAuth=document.getElementById("chk-auth").checked;
   const doMort=document.getElementById("chk-mort").checked;
   const doDecl=document.getElementById("chk-decl").checked;
-  if(!doNote&&!doAuth&&!doMort&&!doDecl){showMsg("請至少勾選一份文件","err");return;}
+  const doPledge=document.getElementById("chk-pledge").checked;
+  if(!doNote&&!doAuth&&!doMort&&!doDecl&&!doPledge){showMsg("請至少勾選一份文件","err");return;}
 
   const btn=document.getElementById("genBtn");
   btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
@@ -516,6 +584,7 @@ async function generate(){
     if(doAuth)fetches.push(fetch("auth.pdf"));
     if(doMort)fetches.push(fetch(mortVer==="tw"?"mortgage_tw.pdf":"mortgage_hj.pdf"));
     if(doDecl)fetches.push(fetch("decl.pdf"));
+    if(doPledge){const pledgeVer2=document.getElementById("pledge-version")?.value||"tw";fetches.push(fetch(pledgeVer2==="tw"?"pledge_tw.pdf":"pledge_hj.pdf"));}
     const resps=await Promise.all(fetches);
     if(resps.some(r=>!r.ok))throw new Error("無法載入資源，請確認網路連線");
     const bufs=await Promise.all(resps.map(r=>r.arrayBuffer()));
@@ -527,6 +596,7 @@ async function generate(){
     const authBytes=doAuth?bufs[idx++]:null;
     const mortBytes=doMort?bufs[idx++]:null;
     const declBytes=doDecl?bufs[idx++]:null;
+    const pledgeBytes=doPledge?bufs[idx++]:null;
 
     const zip=new JSZip();
     const namePrefix=issuers[0]?.name||"未命名";
@@ -589,6 +659,21 @@ async function generate(){
         const bytes=await makeDeclPDF(fontBytes,declBytes,iss,caseNo,year,month,day,amtCN,holder,account);
         zip.file(`撥款個人聲明書_${iss.name}.pdf`,bytes);
       }
+    }
+
+    // 不動產一順位切結書
+    if(doPledge){
+      const pledgeVer=document.getElementById("pledge-version").value;
+      const pledgeSelected=issuers.filter((iss,i)=>{
+        const chk=document.getElementById(`pledge-chk-${i}`);
+        return chk&&chk.checked;
+      });
+      if(pledgeSelected.length===0){showMsg("切結書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      if(pledgeSelected.length>2){showMsg("切結書：最多只能選2位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const bytes=await makePledgePDF(fontBytes,pledgeBytes,pledgeSelected);
+      const vLabel=pledgeVer==="tw"?"台灣聯合":"合經";
+      const names=pledgeSelected.map(iss=>iss.name).join("_");
+      zip.file(`不動產一順位切結書_${vLabel}_${names}.pdf`,bytes);
     }
 
     // 下載
