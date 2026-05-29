@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>本票產生器 — BZNK</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f4f0;min-height:100vh;display:flex;justify-content:center;padding:32px 16px 60px}
+.wrap{width:100%;max-width:680px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:18px;font-weight:600;color:#1a1a18}
+.sub{font-size:13px;color:#666;margin-top:2px}
+.card{background:#fff;border:0.5px solid rgba(0,0,0,0.12);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.card-title{font-size:13px;font-weight:600;color:#444;margin-bottom:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px}
+.field label{font-size:11px;color:#666;font-weight:500}
+.field input,.field select{padding:7px 9px;border:0.5px solid rgba(0,0,0,0.2);border-radius:7px;font-size:13px;color:#1a1a18;background:#fff;outline:none;width:100%}
+.field input:focus,.field select:focus{border-color:#555}
+.field input[readonly]{background:#f9f8f5;color:#555}
+.field input.err{border-color:#e55}
+.issuer-block{border:0.5px solid rgba(0,0,0,0.1);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;position:relative;margin-bottom:10px}
+.issuer-num{font-size:12px;font-weight:600;color:#555}
+.rm-btn{position:absolute;top:12px;right:12px;background:none;border:none;cursor:pointer;color:#bbb;font-size:20px;line-height:1;padding:2px 6px}
+.rm-btn:hover{color:#e55}
+.add-btn{background:none;border:0.5px dashed rgba(0,0,0,0.2);border-radius:8px;padding:9px;font-size:13px;color:#777;cursor:pointer;width:100%}
+.add-btn:hover{background:#f5f4f0}
+.hint{font-size:11px;color:#999;margin-top:2px}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;margin-left:6px}
+.badge-co{background:#e6f1fb;color:#0c447c}
+.badge-pe{background:#e1f5ee;color:#085041}
+.preview-bar{background:#f9f8f5;border-radius:8px;padding:10px 14px;font-size:12px;color:#666;display:flex;gap:16px;flex-wrap:wrap}
+.preview-bar strong{color:#1a1a18}
+.attach-item{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:0.5px solid rgba(0,0,0,0.08);border-radius:10px;background:#fafaf8}
+.attach-header{display:flex;align-items:center;gap:10px;cursor:pointer}
+.attach-header input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#1a1a18}
+.attach-label{font-size:13px;font-weight:500;color:#1a1a18;flex:1}
+.attach-body{display:none;flex-direction:column;gap:8px;padding-top:4px}
+.attach-body.open{display:flex}
+.issuer-check-list{display:flex;flex-wrap:wrap;gap:8px}
+.issuer-check{display:flex;align-items:center;gap:5px;font-size:12px;color:#444;cursor:pointer}
+.issuer-check input{width:14px;height:14px;accent-color:#1a1a18;cursor:pointer}
+.gen-btn{background:#1a1a18;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:500;cursor:pointer;width:100%;transition:opacity 0.15s}
+.gen-btn:hover:not(:disabled){opacity:0.85}
+.gen-btn:disabled{background:#ccc;cursor:not-allowed}
+.msg{font-size:13px;padding:10px 14px;border-radius:8px;text-align:center}
+.msg-err{background:#fce8e8;color:#a32d2d}
+.msg-ok{background:#e1f5ee;color:#085041}
+
+/* ── OCR 掃描區塊 ── */
+.ocr-section{margin-top:4px;padding:10px 12px;border-radius:8px;border:0.5px solid}
+.ocr-section.type-pe{background:#f2f6ff;border-color:rgba(60,100,240,0.15)}
+.ocr-section.type-co{background:#f2f8f5;border-color:rgba(8,100,65,0.15)}
+.ocr-title{font-size:11px;font-weight:600;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.type-pe .ocr-title{color:#334}
+.type-co .ocr-title{color:#085041}
+.ocr-btns{display:flex;gap:8px;flex-wrap:wrap}
+.scan-lbl{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:0.5px solid;border-radius:7px;font-size:12px;cursor:pointer;background:#fff;transition:background 0.12s;user-select:none}
+.type-pe .scan-lbl{border-color:rgba(60,100,240,0.3);color:#335}
+.type-pe .scan-lbl:hover{background:#e8eeff}
+.type-pe .scan-lbl.done{border-color:rgba(8,80,65,0.35);color:#085041;background:#eaf7f2}
+.type-co .scan-lbl{border-color:rgba(8,100,65,0.3);color:#085041}
+.type-co .scan-lbl:hover{background:#e0f5ec}
+.type-co .scan-lbl.done{border-color:rgba(8,80,65,0.5);color:#085041;background:#d5f0e5}
+.ocr-hint{font-size:10px;color:#99a;margin-top:5px;line-height:1.5}
+.ocr-status{font-size:11px;margin-top:6px;padding:5px 9px;border-radius:6px;background:rgba(0,0,0,0.04);color:#888;line-height:1.5}
+.ocr-status.ok{color:#085041;background:#e1f5ee}
+.ocr-status.warn{color:#7a4e00;background:#fff6e0}
+.ocr-status.loading{color:#335;background:#e8eeff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div><h1>本票產生器</h1><div class="sub">台灣聯合金融科技 · BZNK 平台</div></div>
+
+  <!-- API 金鑰設定（掃描圖片辨識用） -->
+  <div class="card" id="apiKeyCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleApiCard()">
+      <div class="card-title" style="margin:0">🔑 圖片辨識設定（Claude API）</div>
+      <span id="apiKeyStatus" style="font-size:12px;color:#aaa">未設定</span>
+    </div>
+    <div id="apiKeyBody" style="display:none;flex-direction:column;gap:8px;margin-top:8px">
+      <div style="font-size:12px;color:#666">
+        輸入 Anthropic API 金鑰，掃描身分證或變更登記表時自動辨識填入。<br>
+        遇到流量限制（rate limit）會自動等待並重試，不需手動操作。<br>
+        金鑰存在瀏覽器本地，不會傳送給任何第三方。
+      </div>
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="flex:1">
+          <label>API 金鑰</label>
+          <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." oninput="onApiKeyInput()">
+        </div>
+        <button onclick="saveApiKey()" style="padding:7px 16px;background:#1a1a18;color:#fff;border:none;border-radius:7px;font-size:13px;cursor:pointer;white-space:nowrap;height:34px">儲存</button>
+      </div>
+      <div id="apiKeyMsg" style="font-size:11px;color:#aaa"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">票面金額</div>
+    <div class="row">
+      <div class="field" style="flex:2"><label>金額（新台幣，數字）</label><input id="amount" type="number" min="1" placeholder="例：2500000" oninput="updatePreview()"></div>
+      <div class="field" style="flex:1;min-width:110px"><label>大寫預覽</label><input id="amtCN" readonly></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">發票人資料（最多5位）</div>
+    <div id="issuers"></div>
+    <button class="add-btn" onclick="addIssuer()">＋ 新增發票人</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">附件文件</div>
+    <div class="attach-item" id="attach-note">
+      <div class="attach-header" onclick="toggleAttach('note')">
+        <input type="checkbox" id="chk-note" checked onclick="event.stopPropagation();toggleAttach('note')">
+        <span class="attach-label">📄 額度本票</span>
+      </div>
+      <div class="attach-body open" id="body-note">
+        <div style="font-size:12px;color:#888">所有發票人資料自動帶入，無需另外選擇。</div>
+      </div>
+    </div>
+    <div class="attach-item" id="attach-auth">
+      <div class="attach-header" onclick="toggleAttach('auth')">
+        <input type="checkbox" id="chk-auth" onclick="event.stopPropagation();toggleAttach('auth')">
+        <span class="attach-label">📄 財產所得查調委託書</span>
+      </div>
+      <div class="attach-body" id="body-auth">
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人（個人）：</div>
+        <div class="issuer-check-list" id="auth-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">所有勾選的個人發票人填入同一份，最多7位。</div>
+      </div>
+    </div>
+    <div class="attach-item" id="attach-decl">
+      <div class="attach-header" onclick="toggleAttach('decl')">
+        <input type="checkbox" id="chk-decl" onclick="event.stopPropagation();toggleAttach('decl')">
+        <span class="attach-label">📄 撥款個人聲明書</span>
+      </div>
+      <div class="attach-body" id="body-decl">
+        <div class="row">
+          <div class="field">
+            <label>借貸日期（民國）</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input id="decl-year" type="text" placeholder="年" style="width:60px">
+              <span style="font-size:13px">年</span>
+              <input id="decl-month" type="text" placeholder="月" style="width:44px">
+              <span style="font-size:13px">月</span>
+              <input id="decl-day" type="text" placeholder="日" style="width:44px">
+              <span style="font-size:13px">日</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>案件編號</label>
+            <input id="decl-case" type="text" placeholder="案件編號">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>戶名</label>
+            <input id="decl-holder" type="text" placeholder="帳戶戶名">
+          </div>
+          <div class="field">
+            <label>帳號</label>
+            <input id="decl-account" type="text" placeholder="銀行帳號">
+          </div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇公司發票人：</div>
+        <div class="issuer-check-list" id="decl-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">帶入公司名稱、統編、負責人；金額自動帶入中文大寫。</div>
+      </div>
+    </div>
+    <div class="attach-item" id="attach-pledge">
+      <div class="attach-header" onclick="toggleAttach('pledge')">
+        <input type="checkbox" id="chk-pledge" onclick="event.stopPropagation();toggleAttach('pledge')">
+        <span class="attach-label">📄 不動產一順位切結書</span>
+      </div>
+      <div class="attach-body" id="body-pledge">
+        <div class="row" style="margin-bottom:4px">
+          <div class="field">
+            <label>版本</label>
+            <select id="pledge-version">
+              <option value="tw">台灣聯合版</option>
+              <option value="hj">合經版</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人（最多2位）：</div>
+        <div class="issuer-check-list" id="pledge-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">公司→帶入公司名稱+負責人及統編；個人→帶入姓名及身分證字號。</div>
+      </div>
+    </div>
+    <div class="attach-item" id="attach-promise">
+      <div class="attach-header" onclick="toggleAttach('promise')">
+        <input type="checkbox" id="chk-promise" onclick="event.stopPropagation();toggleAttach('promise')">
+        <span class="attach-label">📄 承諾書（遠銀金流）</span>
+      </div>
+      <div class="attach-body" id="body-promise">
+        <div class="row">
+          <div class="field">
+            <label>帳號</label>
+            <input id="promise-account" type="text" placeholder="銀行帳號">
+          </div>
+          <div class="field">
+            <label>承諾書金額（數字）</label>
+            <input id="promise-amt" type="number" min="1" placeholder="例：2500000" oninput="updatePromiseAmt()">
+          </div>
+          <div class="field">
+            <label>大寫預覽</label>
+            <input id="promise-amt-preview" readonly>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人（最多4位）：</div>
+        <div class="issuer-check-list" id="promise-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">所有發票人帶入立書人欄位，公司帶入統編，個人帶入身分證字號。</div>
+      </div>
+    </div>
+    <div class="attach-item" id="attach-mort">
+      <div class="attach-header" onclick="toggleAttach('mort')">
+        <input type="checkbox" id="chk-mort" onclick="event.stopPropagation();toggleAttach('mort')">
+        <span class="attach-label">📄 抵押權設定種類約定書</span>
+      </div>
+      <div class="attach-body" id="body-mort">
+        <div class="row" style="margin-bottom:4px">
+          <div class="field">
+            <label>版本</label>
+            <select id="mort-version">
+              <option value="tw">台灣聯合版</option>
+              <option value="hj">合經版</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人：</div>
+        <div class="issuer-check-list" id="mort-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">每位發票人各產生一份（擔保物提供人、統編/身分證、地址）。</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="previewBar" class="preview-bar" style="display:none"></div>
+  <div id="msgBox"></div>
+  <button class="gen-btn" id="genBtn" onclick="generate()">產生並下載文件</button>
+</div>
+
+<!-- PDF.js：讓公司變更登記表可以直接上傳 PDF，自動取第一頁轉圖後送 API -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+const CN={"0":"零","1":"壹","2":"貳","3":"參","4":"肆","5":"伍","6":"陸","7":"柒","8":"捌","9":"玖"};
+
+function toChinese(s){
+  try{
+    const n=parseInt(String(s).replace(/,/g,""));
+    if(!n||isNaN(n))return "";
+    function sec(num,u){let r="";for(let i=0;i<4;i++){const d=Math.floor(num/Math.pow(10,3-i))%10;if(d)r+=CN[d]+u[i];else if(r&&r[r.length-1]!=="零")r+="零";}return r.replace(/零+$/,"");}
+    const yi=Math.floor(n/1e8),wan=Math.floor((n%1e8)/1e4),ge=n%1e4;
+    let r="";
+    if(yi)r+=sec(yi,["仟","佰","拾",""])+"億";
+    if(wan){if(yi&&wan<1000)r+="零";r+=sec(wan,["仟","佰","拾",""])+"萬";}
+    if(ge){if((yi||wan)&&ge<1000)r+="零";r+=sec(ge,["仟","佰","拾",""]);}
+    return r.replace(/零+$/,"");
+  }catch{return "";}
+}
+
+function validateId(val,type){
+  return type==="公司"?/^\d{8}$/.test(val.trim()):/^[A-Za-z]\d{9}$/.test(val.trim());
+}
+
+let issuers=[];
+
+function addIssuer(){
+  if(issuers.length>=5){showMsg("最多只能有5位發票人","err");return;}
+  issuers.push({type:"個人",name:"",id:"",address:"",rep:"",ocrStatus:"",ocrOk:false,ocrScanned:{}});
+  renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();updatePreview();
+}
+function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();updatePreview();}
+function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();}updatePreview();}
+function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
+function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
+
+// ── OCR 區塊 HTML ─────────────────────────────────────────────────────────────
+
+function ocrStatusHtml(iss) {
+  if (!iss.ocrStatus) return "";
+  let cls = "warn";
+  if (iss.ocrStatus.startsWith("✓")) cls = "ok";
+  else if (iss.ocrStatus.startsWith("⏳")) cls = "loading";
+  return `<div class="ocr-status ${cls}">${iss.ocrStatus}</div>`;
+}
+
+// 顯示 OCR 原始辨識文字（可展開，方便除錯和回報問題）
+function ocrRawHtml(iss) {
+  if (!iss.ocrRawText) return "";
+  const escaped = iss.ocrRawText
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return `<details style="margin-top:6px">
+    <summary style="font-size:10px;color:#99a;cursor:pointer;user-select:none">
+      🔍 原始辨識文字（點擊展開，辨識不正確時可截圖回報）
+    </summary>
+    <pre style="font-size:10px;color:#556;background:#f0f0ee;border-radius:5px;padding:8px;margin-top:4px;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto">${escaped}</pre>
+  </details>`;
+}
+
+function ocrSectionHtml(i, iss) {
+  if (iss.type === "公司") {
+    const done = iss.ocrScanned && iss.ocrScanned.company;
+    return `<div class="ocr-section type-co">
+      <div class="ocr-title">🏢 變更登記表掃描自動填入（本地辨識・不限流量）</div>
+      <div class="ocr-btns">
+        <label class="scan-lbl${done?" done":""}" for="ocr-co-${i}">
+          ${done?"✓ 已掃描":"📄 上傳變更登記表第一頁"}
+          <input type="file" id="ocr-co-${i}" accept="image/*,.pdf,application/pdf" style="display:none" onchange="scanCompanyDoc(${i},this)">
+        </label>
+      </div>
+      <div class="ocr-hint">
+        支援圖片（JPG / PNG / HEIC 等）或 PDF 檔，PDF 會自動取第一頁。<br>
+        自動辨識：公司名稱、統一編號、代表人、公司地址。<br>
+        遇到流量上限會自動等待並重試，無需手動操作。
+      </div>
+      ${ocrStatusHtml(iss)}
+      ${ocrRawHtml(iss)}
+    </div>`;
+  } else {
+    const frontDone = iss.ocrScanned && iss.ocrScanned.front;
+    const backDone  = iss.ocrScanned && iss.ocrScanned.back;
+    return `<div class="ocr-section type-pe">
+      <div class="ocr-title">🪪 身分證掃描自動填入（本地辨識・不限流量）</div>
+      <div class="ocr-btns">
+        <label class="scan-lbl${frontDone?" done":""}" for="ocr-f-${i}">
+          ${frontDone?"✓":"📷"} 正面（姓名＋身分證字號）
+          <input type="file" id="ocr-f-${i}" accept="image/*" style="display:none" onchange="scanIdCard(${i},'front',this)">
+        </label>
+        <label class="scan-lbl${backDone?" done":""}" for="ocr-b-${i}">
+          ${backDone?"✓":"📷"} 背面（戶籍地址）
+          <input type="file" id="ocr-b-${i}" accept="image/*" style="display:none" onchange="scanIdCard(${i},'back',this)">
+        </label>
+      </div>
+      <div class="ocr-hint">
+        背面請翻正後拍攝，避免倒置。辨識完成後請核對欄位是否正確。<br>
+        遇到流量上限會自動等待並重試，無需手動操作。
+      </div>
+      ${ocrStatusHtml(iss)}
+      ${ocrRawHtml(iss)}
+    </div>`;
+  }
+}
+
+function renderIssuers(){
+  const wrap=document.getElementById("issuers");
+  wrap.innerHTML="";
+  issuers.forEach((iss,i)=>{
+    const isCo=iss.type==="公司";
+    const div=document.createElement("div");
+    div.className="issuer-block";
+    div.innerHTML=`
+      <div style="display:flex;align-items:center">
+        <span class="issuer-num">發票人 ${i+1}</span>
+        <span class="badge ${isCo?"badge-co":"badge-pe"}">${iss.type}</span>
+      </div>
+      ${issuers.length>1?`<button class="rm-btn" onclick="removeIssuer(${i})">×</button>`:""}
+      <div class="row">
+        <div class="field" style="flex:0 0 85px;min-width:85px">
+          <label>類型</label>
+          <select onchange="setIssuer(${i},'type',this.value)">
+            <option value="個人"${!isCo?" selected":""}>個人</option>
+            <option value="公司"${isCo?" selected":""}>公司</option>
+          </select>
+        </div>
+        <div class="field" style="flex:2">
+          <label>${isCo?"公司名稱":"姓名"}</label>
+          <input value="${esc(iss.name)}" placeholder="${isCo?"喆泰機械股份有限公司":"王小明"}" oninput="setIssuer(${i},'name',this.value)">
+        </div>
+        ${isCo?`<div class="field" style="flex:1;min-width:100px"><label>負責人姓名</label><input value="${esc(iss.rep)}" placeholder="吳明憲" oninput="setIssuer(${i},'rep',this.value)"></div>`:""}
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>${isCo?"統一編號":"身分證字號"}</label>
+          <input id="id_${i}" value="${esc(iss.id)}"
+            placeholder="${isCo?"8碼數字":"1英文+9數字"}"
+            oninput="setIssuer(${i},'id',this.value);validateField(${i})">
+          <div class="hint">${isCo?"格式：8碼數字（例：27832490）":"格式：英文1碼＋數字9碼（例：A123456789）"}</div>
+        </div>
+        <div class="field" style="flex:2">
+          <label>地址</label>
+          <input value="${esc(iss.address)}" placeholder="${isCo?"公司登記地址":"戶籍地址"}" oninput="setIssuer(${i},'address',this.value)">
+        </div>
+      </div>
+      ${ocrSectionHtml(i, iss)}`;
+    wrap.appendChild(div);
+  });
+}
+
+// ── PDF.js 初始化 ─────────────────────────────────────────────────────────────
+if (typeof pdfjsLib !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+// ── API 金鑰管理 ──────────────────────────────────────────────────────────────
+function getApiKey() { return localStorage.getItem("claude_api_key") || ""; }
+function saveApiKey() {
+  const key = document.getElementById("apiKeyInput").value.trim();
+  if (!key.startsWith("sk-ant-")) {
+    document.getElementById("apiKeyMsg").textContent = "⚠️ 格式不符，API 金鑰應以 sk-ant- 開頭";
+    return;
+  }
+  localStorage.setItem("claude_api_key", key);
+  document.getElementById("apiKeyMsg").textContent = "✓ 已儲存";
+  document.getElementById("apiKeyStatus").textContent = "已設定 ✓";
+  document.getElementById("apiKeyStatus").style.color = "#085041";
+  setTimeout(() => toggleApiCard(), 600);
+}
+function onApiKeyInput() { document.getElementById("apiKeyMsg").textContent = ""; }
+function toggleApiCard() {
+  const body = document.getElementById("apiKeyBody");
+  body.style.display = body.style.display === "none" ? "flex" : "none";
+}
+// 頁面載入時更新 API 金鑰狀態顯示
+(function initApiKeyDisplay() {
+  const key = getApiKey();
+  if (key) {
+    document.getElementById("apiKeyStatus").textContent = "已設定 ✓";
+    document.getElementById("apiKeyStatus").style.color = "#085041";
+    const inp = document.getElementById("apiKeyInput");
+    if (inp) inp.value = key;
+  }
+})();
+
+// ── 檔案轉 base64 dataURL（支援圖片 + PDF）──────────────────────────────────
+// PDF 檔：用 PDF.js 渲染第一頁到 canvas，轉為 PNG base64
+// 圖片檔：直接轉 dataURL
+
+async function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error("檔案讀取失敗"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fileToImageDataURL(file) {
+  if (file.type === "application/pdf") {
+    if (typeof pdfjsLib === "undefined") {
+      throw new Error("PDF.js 未載入，請確認網路連線後重新整理頁面");
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1);
+    const scale = 2.5;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    return canvas.toDataURL("image/png");
+  }
+  return fileToDataURL(file);
+}
+
+// ── Claude API 呼叫（含自動重試）────────────────────────────────────────────
+// 遇到 429 rate limit → 等待後自動重試，最多 3 次
+// onWait(secondsLeft) 回呼讓 UI 顯示倒數
+
+async function callClaudeVision(apiKey, dataUrl, promptText, onWait) {
+  const MAX_RETRIES = 3;
+  const mediaType = dataUrl.startsWith("data:image/png") ? "image/png"
+                  : dataUrl.startsWith("data:image/webp") ? "image/webp"
+                  : "image/jpeg";
+  const base64Data = dataUrl.split(",")[1];
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      // 等待時間：30 秒、60 秒、90 秒
+      const waitSec = 30 * attempt;
+      for (let s = waitSec; s > 0; s--) {
+        if (onWait) onWait(s, attempt, MAX_RETRIES);
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 300,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
+            { type: "text", text: promptText }
+          ]
+        }]
+      })
+    });
+
+    if (resp.status === 429) {
+      if (attempt < MAX_RETRIES - 1) continue;   // 下一輪重試
+      throw new Error("多次嘗試後仍達到流量上限，請稍後再試");
+    }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error((err.error && err.error.message) || `API 錯誤 ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    const text = data.content[0].text;
+    // 嘗試解析 JSON（Claude 有時會在 JSON 前後加上說明文字）
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("API 回傳格式異常：" + text.slice(0, 100));
+    return JSON.parse(jsonMatch[0]);
+  }
+}
+
+// ── 通用：套用辨識結果 ────────────────────────────────────────────────────────
+function applyOcrResult(i, extracted, side) {
+  const filled = [];
+  if (extracted.name)    { issuers[i].name    = extracted.name;    filled.push("名稱「" + extracted.name + "」"); }
+  if (extracted.id)      { issuers[i].id      = extracted.id;      filled.push("編號「" + extracted.id + "」"); }
+  if (extracted.rep)     { issuers[i].rep     = extracted.rep;     filled.push("負責人「" + extracted.rep + "」"); }
+  if (extracted.address) { issuers[i].address = extracted.address; filled.push("地址"); }
+
+  if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+  issuers[i].ocrScanned[side] = true;
+
+  if (filled.length > 0) {
+    issuers[i].ocrStatus = "✓ 已填入：" + filled.join("、") + "　請核對是否正確";
+    issuers[i].ocrOk = true;
+  } else {
+    issuers[i].ocrStatus = "⚠️ 圖片中未找到可辨識的欄位，請手動填寫";
+    issuers[i].ocrOk = false;
+  }
+  renderIssuers();
+  renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();
+  updatePreview();
+}
+
+// ── 個人身分證掃描 ────────────────────────────────────────────────────────────
+const PROMPT_ID_FRONT = `這是台灣身分證正面。請仔細辨識並以 JSON 格式回傳下列欄位：
+- name: 姓名（中文，例如「王小明」）
+- id_number: 身分證字號（格式：1個大寫英文字母 + 9個數字，例如「A123456789」）
+若某欄位看不清楚請設為 null。只回傳 JSON，不需其他說明。
+範例：{"name":"王小明","id_number":"A123456789"}`;
+
+const PROMPT_ID_BACK = `這是台灣身分證背面。請仔細辨識並以 JSON 格式回傳下列欄位：
+- address: 戶籍地址（完整中文地址）
+若看不清楚請設為 null。只回傳 JSON，不需其他說明。
+範例：{"address":"台北市中正區中山南路7號"}`;
+
+async function scanIdCard(i, side, inputEl) {
+  if (!inputEl.files || !inputEl.files[0]) return;
+  const file = inputEl.files[0];
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    issuers[i].ocrStatus = "❌ 請先在頁面上方設定 Claude API 金鑰";
+    issuers[i].ocrOk = false;
+    renderIssuers();
+    return;
+  }
+
+  issuers[i].ocrStatus = side === "front" ? "⏳ 辨識正面中…" : "⏳ 辨識背面中…";
+  issuers[i].ocrOk = false;
+  renderIssuers();
+
+  try {
+    const dataURL  = await fileToImageDataURL(file);
+    const prompt   = side === "front" ? PROMPT_ID_FRONT : PROMPT_ID_BACK;
+    const onWait   = (s, attempt, max) => {
+      issuers[i].ocrStatus = `⏳ 流量暫時達上限，${s} 秒後自動重試（第 ${attempt}/${max-1} 次）`;
+      renderIssuers();
+    };
+    const result   = await callClaudeVision(apiKey, dataURL, prompt, onWait);
+    const extracted = {};
+    if (result.name)       extracted.name    = result.name;
+    if (result.id_number)  extracted.id      = result.id_number;
+    if (result.address)    extracted.address = result.address;
+    applyOcrResult(i, extracted, side);
+  } catch(e) {
+    console.error("[scan error]", e);
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned[side] = false;
+    issuers[i].ocrStatus = "❌ 辨識失敗：" + (e.message || "未知錯誤");
+    issuers[i].ocrOk = false;
+    renderIssuers();
+  }
+}
+
+// ── 公司變更登記表掃描 ────────────────────────────────────────────────────────
+const PROMPT_COMPANY = `這是台灣公司變更登記表（股份有限公司或有限公司）。請仔細辨識第一頁並以 JSON 格式回傳：
+- company_name: 公司名稱（中文全名，含「股份有限公司」或「有限公司」）
+- unified_number: 公司統一編號（8位數字）
+- address: 公司所在地（完整中文地址）
+- representative: 代表公司負責人姓名（中文）
+若某欄位看不清楚請設為 null。只回傳 JSON，不需其他說明。
+範例：{"company_name":"喆泰機械股份有限公司","unified_number":"27832490","address":"台北市...","representative":"吳明憲"}`;
+
+async function scanCompanyDoc(i, inputEl) {
+  if (!inputEl.files || !inputEl.files[0]) return;
+  const file = inputEl.files[0];
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    issuers[i].ocrStatus = "❌ 請先在頁面上方設定 Claude API 金鑰";
+    issuers[i].ocrOk = false;
+    renderIssuers();
+    return;
+  }
+
+  issuers[i].ocrStatus = "⏳ 辨識變更登記表中…";
+  issuers[i].ocrOk = false;
+  renderIssuers();
+
+  try {
+    const dataURL = await fileToImageDataURL(file);
+    const onWait  = (s, attempt, max) => {
+      issuers[i].ocrStatus = `⏳ 流量暫時達上限，${s} 秒後自動重試（第 ${attempt}/${max-1} 次）`;
+      renderIssuers();
+    };
+    const result  = await callClaudeVision(apiKey, dataURL, PROMPT_COMPANY, onWait);
+    const extracted = {};
+    if (result.company_name)  extracted.name    = result.company_name;
+    if (result.unified_number) extracted.id     = result.unified_number;
+    if (result.address)        extracted.address = result.address;
+    if (result.representative) extracted.rep    = result.representative;
+    applyOcrResult(i, extracted, "company");
+  } catch(e) {
+    console.error("[scan error]", e);
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned.company = false;
+    issuers[i].ocrStatus = "❌ 辨識失敗：" + (e.message || "未知錯誤");
+    issuers[i].ocrOk = false;
+    renderIssuers();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderIssuerCheckList(listId, chkPrefix, filterFn){
+  const list=document.getElementById(listId);
+  if(!list)return;
+  list.innerHTML="";
+  const filtered=issuers.filter(filterFn);
+  if(filtered.length===0){
+    list.innerHTML='<div style="font-size:12px;color:#aaa">尚無符合條件的發票人</div>';
+    return;
+  }
+  filtered.forEach(iss=>{
+    const realIdx=issuers.indexOf(iss);
+    const lbl=document.createElement("label");
+    lbl.className="issuer-check";
+    lbl.innerHTML=`<input type="checkbox" id="${chkPrefix}-${realIdx}" checked> 發票人${realIdx+1}${iss.name?" ("+iss.name+")":""}`;
+    list.appendChild(lbl);
+  });
+}
+
+function renderAuthIssuerList(){renderIssuerCheckList("auth-issuer-list","auth-chk",iss=>iss.type==="個人");}
+function renderMortIssuerList(){renderIssuerCheckList("mort-issuer-list","mort-chk",()=>true);}
+function renderDeclIssuerList(){renderIssuerCheckList("decl-issuer-list","decl-chk",iss=>iss.type==="公司");}
+function renderPledgeIssuerList(){renderIssuerCheckList("pledge-issuer-list","pledge-chk",()=>true);}
+function renderPromiseIssuerList(){renderIssuerCheckList("promise-issuer-list","promise-chk",()=>true);}
+
+function toggleAttach(id){
+  const chk=document.getElementById(`chk-${id}`);
+  const body=document.getElementById(`body-${id}`);
+  if(!chk.matches(':focus'))chk.checked=!chk.checked;
+  body.classList.toggle("open",chk.checked);
+}
+
+function validateField(i){
+  const el=document.getElementById(`id_${i}`);
+  if(!el)return;
+  el.classList.toggle("err",!!issuers[i].id&&!validateId(issuers[i].id,issuers[i].type));
+}
+
+function updatePreview(){
+  const amt=document.getElementById("amount").value;
+  document.getElementById("amtCN").value=toChinese(amt)||"";
+  const bar=document.getElementById("previewBar");
+  if(!amt){bar.style.display="none";return;}
+  bar.style.display="flex";
+  bar.innerHTML=`<span>金額：<strong>NT$ ${parseInt(amt).toLocaleString()}</strong></span><span>大寫：<strong>${toChinese(amt)||"—"}</strong></span><span>發票人：<strong>${issuers.length} 位</strong></span>`;
+}
+
+function updatePromiseAmt(){
+  const v=document.getElementById("promise-amt").value;
+  const el=document.getElementById("promise-amt-preview");
+  if(el)el.value=toChinese(v)||"";
+}
+
+function showMsg(text,type){
+  document.getElementById("msgBox").innerHTML=text?`<div class="msg msg-${type}">${text}</div>`:"";
+}
+
+// ── PDF 產生函式 ──────────────────────────────────────────────────────────────
+
+async function makeNotePDF(fontBytes, blankBytes, amt){
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(blankBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+  function dt(text,x,yTop,maxW,sz=10){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});}
+  function dc(text,x0,x1,yBase,sz=10){if(!text)return;const mw=x1-x0;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}const tw=font.widthOfTextAtSize(text,s);page.drawText(text,{x:x0+(mw-tw)/2,y:H-yBase,size:s,font,color:rgb(0,0,0)});}
+  const arr=[...issuers];
+  while(arr.length<5)arr.push({type:"個人",name:"",id:"",address:"",rep:""});
+  const digits=String(parseInt(amt)).padStart(8,"0").slice(-8).split("");
+  [148,184,220,256,292,328,364,400].forEach((x,i)=>{const ch=CN[digits[i]];const w=font.widthOfTextAtSize(ch,11);page.drawText(ch,{x:x+(30-w)/2,y:H-96.3,size:11,font,color:rgb(0,0,0)});});
+  dc(toChinese(amt),335.0,472.3,571.2);
+  dt(nd(arr[0]),125,170.1,200);dt(arr[0].id,219,190.8,107);dt(arr[0].address,128,211.7,198);
+  dt(nd(arr[1]),125,252.9,148);dt(arr[1].id,219,273.6,107);dt(arr[1].address,128,294.5,198);
+  dt(nd(arr[2]),381,252.9,138);dt(arr[2].id,472,273.6,91);dt(arr[2].address,384,294.5,181);
+  dt(nd(arr[3]),125,335.7,148);dt(arr[3].id,219,356.4,107);dt(arr[3].address,128,377.3,198);
+  dt(nd(arr[4]),381,335.7,138);dt(arr[4].id,472,356.4,91);dt(arr[4].address,384,377.3,181);
+  dc(nd(arr[0]),122.9,364.1,684.0);
+  dc(nd(arr[1]),125.5,276.7,725.5);dc(nd(arr[2]),397.9,549.4,725.5);
+  dc(nd(arr[3]),125.5,276.7,766.8);dc(nd(arr[4]),397.9,549.4,766.8);
+  return await pdfDoc.save();
+}
+
+async function makeAuthPDF(fontBytes, authBytes, issList){
+  const rowMidYs=[444.0,474.2,504.4,534.5,564.7,594.8,625.0];
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(authBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+  function dc(text,x0,x1,yMid,sz=10){if(!text)return;const mw=x1-x0;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}const tw=font.widthOfTextAtSize(text,s);page.drawText(text,{x:x0+(mw-tw)/2,y:H-yMid-(s/2)+2,size:s,font,color:rgb(0,0,0)});}
+  issList.slice(0,7).forEach((iss,i)=>{const yMid=rowMidYs[i];dc(iss.name,40,142,yMid);dc(iss.id,142,252.9,yMid);});
+  return await pdfDoc.save();
+}
+
+async function makeMortPDF(fontBytes, mortBytes, iss){
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(mortBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+  function dt(text,x,yTop,maxW,sz=12){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});}
+  dt(iss.name,344.5,322.9,541-344.5);dt(iss.id,316.6,382.9,541-316.6);dt(iss.address,313.3,402.8,541-313.3);
+  return await pdfDoc.save();
+}
+
+async function makeMortPDFHJ(fontBytes, mortBytes, iss){
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(mortBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+  function dt(text,x,yTop,maxW,sz=12){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});}
+  dt(iss.name,344.5,383.4,541-344.5);dt(iss.id,316.6,443.4,541-316.6);dt(iss.address,313.3,463.3,541-313.3);
+  return await pdfDoc.save();
+}
+
+async function makeDeclPDF(fontBytes, declBytes, iss, caseNo, year, month, day, amtChinese, holder, account){
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(declBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[0];
+  const H=page.getHeight();
+  const SZ=14;
+  function dt(text,x,yTop,maxW,sz=SZ){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});}
+  function dc(text,x0,x1,yTop,sz=SZ){if(!text)return;const mw=x1-x0;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=mw)break;s-=0.5;}const tw=font.widthOfTextAtSize(text,s);page.drawText(text,{x:x0+(mw-tw)/2,y:H-(yTop+sz)+2,size:s,font,color:rgb(0,0,0)});}
+  dc(year,136,156.7,124);dc(month,177,192.3,124);dc(day,213,227.9,124);
+  dt(caseNo,79,154,216-79);dt(amtChinese,336,154,444-336-5);
+  dt(iss.name,99,560.8,559.4-99);dt(iss.id,99,598.7,559.4-99);dt(iss.rep,119,636.7,559.4-119);
+  dt(holder,89.4,311.7,559.4-89.4);dt(account,89.4,341.4,559.4-89.4);
+  return await pdfDoc.save();
+}
+
+async function makePledgePDF(fontBytes, pledgeBytes, issList){
+  const slots=[{yName:399.1,xName:325.3,yId:435.1,xId:315.1,yIdno:453.1,xIdno:327.1},{yName:489.1,xName:327.1,yId:525.1,xId:315.1,yIdno:543.1,xIdno:327.1}];
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(pledgeBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const page=pdfDoc.getPages()[1];
+  const H=page.getHeight();
+  function dt(text,x,yTop,maxW,sz=10){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});}
+  issList.slice(0,2).forEach((iss,i)=>{
+    const slot=slots[i];const isCo=iss.type==="公司";
+    const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
+    dt(nameText,slot.xName,slot.yName,559-slot.xName);
+    if(isCo){dt(iss.id,slot.xId,slot.yId,559-slot.xId);}else{dt(iss.id,slot.xIdno,slot.yIdno,559-slot.xIdno);}
+  });
+  return await pdfDoc.save();
+}
+
+async function makePromisePDF(fontBytes, promiseBytes, issList, account, amtChinese){
+  const slots=[{yName:141.4,yId:165.9,yAddr:190.6},{yName:265.0,yId:289.6,yAddr:314.3},{yName:388.7,yId:413.2,yAddr:437.9},{yName:512.6,yId:537.1,yAddr:562.0}];
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(promiseBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const pg1=pdfDoc.getPages()[0];const pg2=pdfDoc.getPages()[1];const H=pg1.getHeight();
+  function dt(page,text,x,yTop,maxW,sz=10){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});}
+  dt(pg1,account,272,729.5,425-272);dt(pg1,amtChinese,460,729.5,559-460);
+  issList.slice(0,4).forEach((iss,i)=>{
+    const s=slots[i];const isCo=iss.type==="公司";
+    const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
+    dt(pg2,nameText,111,s.yName,559-111);dt(pg2,iss.id,179.7,s.yId,559-179.7);dt(pg2,iss.address,110.8,s.yAddr,559-110.8);
+  });
+  return await pdfDoc.save();
+}
+
+// ── 主產生流程 ────────────────────────────────────────────────────────────────
+
+async function generate(){
+  const amt=document.getElementById("amount").value;
+  if(!amt||parseInt(amt)<=0){showMsg("請輸入金額","err");return;}
+  if(issuers.length===0){showMsg("請至少新增一位發票人","err");return;}
+  for(let i=0;i<issuers.length;i++){
+    const iss=issuers[i];
+    if(!iss.name){showMsg(`發票人 ${i+1}：請填寫${iss.type==="公司"?"公司名稱":"姓名"}`,"err");return;}
+    if(!iss.id){showMsg(`發票人 ${i+1}：請填寫${iss.type==="公司"?"統一編號":"身分證字號"}`,"err");return;}
+    if(!validateId(iss.id,iss.type)){showMsg(iss.type==="公司"?`發票人 ${i+1}：統一編號應為8碼數字`:`發票人 ${i+1}：身分證字號應為1碼英文＋9碼數字`,"err");return;}
+    if(!iss.address){showMsg(`發票人 ${i+1}：請填寫地址`,"err");return;}
+    if(iss.type==="公司"&&!iss.rep){showMsg(`發票人 ${i+1}：請填寫負責人姓名`,"err");return;}
+  }
+  const doNote=document.getElementById("chk-note").checked;
+  const doAuth=document.getElementById("chk-auth").checked;
+  const doMort=document.getElementById("chk-mort").checked;
+  const doDecl=document.getElementById("chk-decl").checked;
+  const doPledge=document.getElementById("chk-pledge").checked;
+  const doPromise=document.getElementById("chk-promise").checked;
+  if(!doNote&&!doAuth&&!doMort&&!doDecl&&!doPledge&&!doPromise){showMsg("請至少勾選一份文件","err");return;}
+  const btn=document.getElementById("genBtn");
+  btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
+  try{
+    const mortVer=document.getElementById("mort-version")?.value||"tw";
+    const fetches=[fetch("font.ttf")];
+    if(doNote)fetches.push(fetch("blank.pdf"));
+    if(doAuth)fetches.push(fetch("auth.pdf"));
+    if(doMort)fetches.push(fetch(mortVer==="tw"?"mortgage_tw.pdf":"mortgage_hj.pdf"));
+    if(doDecl)fetches.push(fetch("decl.pdf"));
+    if(doPledge){const pv=document.getElementById("pledge-version")?.value||"tw";fetches.push(fetch(pv==="tw"?"pledge_tw.pdf":"pledge_hj.pdf"));}
+    if(doPromise)fetches.push(fetch("promise.pdf"));
+    const resps=await Promise.all(fetches);
+    if(resps.some(r=>!r.ok))throw new Error("無法載入資源，請確認網路連線");
+    const bufs=await Promise.all(resps.map(r=>r.arrayBuffer()));
+    btn.textContent="產生中…";
+    let idx=0;
+    const fontBytes=bufs[idx++];
+    const blankBytes=doNote?bufs[idx++]:null;
+    const authBytes=doAuth?bufs[idx++]:null;
+    const mortBytes=doMort?bufs[idx++]:null;
+    const declBytes=doDecl?bufs[idx++]:null;
+    const pledgeBytes=doPledge?bufs[idx++]:null;
+    const promiseBytes=doPromise?bufs[idx++]:null;
+    const zip=new JSZip();
+    const namePrefix=issuers[0]?.name||"未命名";
+    const amtStr=parseInt(amt).toLocaleString();
+    if(doNote){const bytes=await makeNotePDF(fontBytes,blankBytes,amt);zip.file(`本票_${namePrefix}_${amtStr}元.pdf`,bytes);}
+    if(doAuth){
+      const individuals=issuers.filter(iss=>iss.type==="個人");
+      const selected=individuals.filter(iss=>{const chk=document.getElementById(`auth-chk-${issuers.indexOf(iss)}`);return chk&&chk.checked;});
+      if(selected.length===0){showMsg("委託書：請至少勾選一位個人發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const bytes=await makeAuthPDF(fontBytes,authBytes,selected);
+      zip.file(`財產所得查調委託書_${selected.map(i=>i.name).join("_")}.pdf`,bytes);
+    }
+    if(doMort){
+      const mortVer=document.getElementById("mort-version").value;
+      const mortSelected=issuers.filter((iss,i)=>{const chk=document.getElementById(`mort-chk-${i}`);return chk&&chk.checked;});
+      if(mortSelected.length===0){showMsg("抵押權約定書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      for(const iss of mortSelected){
+        const bytes=mortVer==="tw"?await makeMortPDF(fontBytes,mortBytes,iss):await makeMortPDFHJ(fontBytes,mortBytes,iss);
+        zip.file(`抵押權設定種類約定書_${mortVer==="tw"?"台灣聯合":"合經"}_${iss.name}.pdf`,bytes);
+      }
+    }
+    if(doDecl){
+      const caseNo=document.getElementById("decl-case").value||"";
+      const year=document.getElementById("decl-year").value||"";
+      const month=document.getElementById("decl-month").value||"";
+      const day=document.getElementById("decl-day").value||"";
+      const amtCN=toChinese(amt);
+      const declSelected=issuers.filter((iss,i)=>{if(iss.type!=="公司")return false;const chk=document.getElementById(`decl-chk-${i}`);return chk&&chk.checked;});
+      if(declSelected.length===0){showMsg("聲明書：請至少勾選一位公司發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const holder=document.getElementById("decl-holder").value||"";
+      const account=document.getElementById("decl-account").value||"";
+      for(const iss of declSelected){
+        const bytes=await makeDeclPDF(fontBytes,declBytes,iss,caseNo,year,month,day,amtCN,holder,account);
+        zip.file(`撥款個人聲明書_${iss.name}.pdf`,bytes);
+      }
+    }
+    if(doPledge){
+      const pledgeVer=document.getElementById("pledge-version").value;
+      const pledgeSelected=issuers.filter((iss,i)=>{const chk=document.getElementById(`pledge-chk-${i}`);return chk&&chk.checked;});
+      if(pledgeSelected.length===0){showMsg("切結書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      if(pledgeSelected.length>2){showMsg("切結書：最多只能選2位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const bytes=await makePledgePDF(fontBytes,pledgeBytes,pledgeSelected);
+      zip.file(`不動產一順位切結書_${pledgeVer==="tw"?"台灣聯合":"合經"}_${pledgeSelected.map(i=>i.name).join("_")}.pdf`,bytes);
+    }
+    if(doPromise){
+      const promiseAccount=document.getElementById("promise-account").value||"";
+      const promiseAmtRaw=document.getElementById("promise-amt").value;
+      if(!promiseAmtRaw||parseInt(promiseAmtRaw)<=0){showMsg("承諾書：請填寫金額","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const promiseAmt=toChinese(promiseAmtRaw);
+      const promiseSelected=issuers.filter((iss,i)=>{const chk=document.getElementById(`promise-chk-${i}`);return chk&&chk.checked;});
+      if(promiseSelected.length===0){showMsg("承諾書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      if(promiseSelected.length>4){showMsg("承諾書：最多只能選4位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      const bytes=await makePromisePDF(fontBytes,promiseBytes,promiseSelected,promiseAccount,promiseAmt);
+      zip.file(`承諾書_${promiseSelected.map(i=>i.name).join("_")}.pdf`,bytes);
+    }
+    const files=Object.keys(zip.files);
+    if(files.length===1){
+      const fname=files[0];
+      const bytes=await zip.files[fname].async("uint8array");
+      const blob=new Blob([bytes],{type:"application/pdf"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
+    } else {
+      const blob=await zip.generateAsync({type:"blob"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.download=`BZNK文件_${namePrefix}_${amtStr}元.zip`;a.click();URL.revokeObjectURL(url);
+    }
+    showMsg(`✓ 已下載 ${files.length} 份文件`,"ok");
+  }catch(e){
+    showMsg("產生失敗："+e.message,"err");
+    console.error(e);
+  }finally{
+    btn.disabled=false;btn.textContent="產生並下載文件";
+  }
+}
+
+addIssuer();
+</script>
+</body>
+</html>
