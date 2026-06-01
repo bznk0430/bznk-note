@@ -96,6 +96,32 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
     </div>
   </div>
 
+
+  <!-- BZNK 系統匯入工具 -->
+  <div class="card" id="bznkCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleBznkCard()">
+      <div class="card-title" style="margin:0">🔗 從 BZNK 系統匯入</div>
+      <span style="font-size:12px;color:#0b8a9f;font-weight:500">Bookmarklet 工具</span>
+    </div>
+    <div id="bznkCardBody" style="display:none;flex-direction:column;gap:12px;margin-top:10px">
+      <div style="font-size:12px;color:#666;line-height:1.7">
+        在 bznk.com 企業身分認證 <b>編輯頁</b>（或列表頁）點擊書籤，自動複製公司資料到剪貼板。<br>
+        再到本票產生器各發票人區塊點「📋 貼上 BZNK 資料」即可填入。<br>
+        輸入統一編號 → 自動搜尋並抓取統編、公司名稱、<b>登記地址</b>，<b>不需要先開公司頁面</b>。
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#444;margin-bottom:6px">步驟 1：複製以下程式碼 → 瀏覽器書籤列右鍵「新增書籤」→ 將程式碼貼入「網址」欄</div>
+        <textarea id="bznkBookmarkletCode" readonly rows="3" style="width:100%;font-size:10px;font-family:monospace;border:0.5px solid #ddd;border-radius:6px;padding:8px;color:#334;background:#f8f8f6;resize:vertical" onclick="this.select()"></textarea>
+        <button onclick="copyBookmarklet()" style="margin-top:6px;padding:5px 14px;background:#0b8a9f;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">複製程式碼</button>
+        <span id="bookmarkletCopied" style="font-size:11px;color:#085041;margin-left:8px;display:none">✓ 已複製</span>
+      </div>
+      <div style="font-size:12px;color:#888;line-height:1.6">
+        步驟 2：在 bznk.com <b>任意頁面</b>點此書籤 → 輸入統一編號或身分證字號 → 自動搜尋並複製到剪貼板<br>
+        步驟 3：回到本票產生器，點發票人區塊的「📋 貼上 BZNK 資料」
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title">票面金額</div>
     <div class="row">
@@ -306,18 +332,21 @@ function ocrRawHtml(iss) {
 function ocrSectionHtml(i, iss) {
   if (iss.type === "公司") {
     const done = iss.ocrScanned && iss.ocrScanned.company;
+    const bznkDone = iss.ocrScanned && iss.ocrScanned.bznk;
     return `<div class="ocr-section type-co">
-      <div class="ocr-title">🏢 變更登記表掃描自動填入（本地辨識・不限流量）</div>
+      <div class="ocr-title">🏢 自動填入</div>
       <div class="ocr-btns">
+        <button class="scan-lbl${bznkDone?" done":""}" onclick="importFromBznk(${i})" style="background:#fff;cursor:pointer;border:none">
+          ${bznkDone?"✓ 已從 BZNK 匯入":"📋 貼上 BZNK 資料"}
+        </button>
         <label class="scan-lbl${done?" done":""}" for="ocr-co-${i}">
-          ${done?"✓ 已掃描":"📄 上傳變更登記表第一頁"}
+          ${done?"✓ 已掃描":"📄 上傳變更登記表（API）"}
           <input type="file" id="ocr-co-${i}" accept="image/*,.pdf,application/pdf" style="display:none" onchange="scanCompanyDoc(${i},this)">
         </label>
       </div>
       <div class="ocr-hint">
-        支援圖片（JPG / PNG / HEIC 等）或 PDF 檔，PDF 會自動取第一頁。<br>
-        自動辨識：公司名稱、統一編號、代表人、公司地址。<br>
-        遇到流量上限會自動等待並重試，無需手動操作。
+        📋 貼上：先在 bznk.com 點書籤工具複製，再按此按鈕填入（<b>登記地址</b>）。<br>
+        📄 掃描：上傳變更登記表，用 Claude API 辨識（需設定 API 金鑰）。
       </div>
       ${ocrStatusHtml(iss)}
       ${ocrRawHtml(iss)}
@@ -325,9 +354,13 @@ function ocrSectionHtml(i, iss) {
   } else {
     const frontDone = iss.ocrScanned && iss.ocrScanned.front;
     const backDone  = iss.ocrScanned && iss.ocrScanned.back;
+    const bznkDone  = iss.ocrScanned && iss.ocrScanned.bznk;
     return `<div class="ocr-section type-pe">
-      <div class="ocr-title">🪪 身分證掃描自動填入（本地辨識・不限流量）</div>
+      <div class="ocr-title">🪪 自動填入</div>
       <div class="ocr-btns">
+        <button class="scan-lbl${bznkDone?" done":""}" onclick="importFromBznk(${i})" style="background:#fff;cursor:pointer;border:none">
+          ${bznkDone?"✓ 已從 BZNK 匯入":"📋 貼上 BZNK 資料"}
+        </button>
         <label class="scan-lbl${frontDone?" done":""}" for="ocr-f-${i}">
           ${frontDone?"✓":"📷"} 正面（姓名＋身分證字號）
           <input type="file" id="ocr-f-${i}" accept="image/*" style="display:none" onchange="scanIdCard(${i},'front',this)">
@@ -636,6 +669,75 @@ async function scanCompanyDoc(i, inputEl) {
     issuers[i].ocrScanned.company = false;
     issuers[i].ocrStatus = "❌ 辨識失敗：" + (e.message || "未知錯誤");
     issuers[i].ocrOk = false;
+    renderIssuers();
+  }
+}
+
+
+// ── BZNK 系統匯入 ─────────────────────────────────────────────────────────────
+
+function toggleBznkCard() {
+  const body = document.getElementById("bznkCardBody");
+  const isHidden = body.style.display === "none";
+  body.style.display = isHidden ? "flex" : "none";
+  if (isHidden) {
+    const el = document.getElementById("bznkBookmarkletCode");
+    if (el && !el.value) el.value = getBznkBookmarklet();
+  }
+}
+
+function copyBookmarklet() {
+  const code = getBznkBookmarklet();
+  navigator.clipboard.writeText(code).then(() => {
+    const sp = document.getElementById("bookmarkletCopied");
+    sp.style.display = "inline";
+    setTimeout(() => { sp.style.display = "none"; }, 2500);
+  }).catch(() => {
+    const el = document.getElementById("bznkBookmarkletCode");
+    el.select(); document.execCommand("copy");
+  });
+}
+
+function getBznkBookmarklet() {
+  // 升級版：輸入統編 / 身分證字號，自動搜尋並抓取登記地址，不需要先開公司頁面
+  return 'javascript:(function(){var q=prompt("輸入統一編號（8碼）或身分證字號（1英文+9數字）：");if(!q||!q.trim())return;q=q.trim();var isNum=/^\\d{8}$/.test(q),param=isNum?"q_business_identity[business_vat_no_cont]="+q:"q_business_identity[user_identity_number_cont]="+q,loader=document.createElement("div");loader.textContent="⏳ 搜尋中...";loader.style.cssText="position:fixed;top:16px;right:16px;background:#555;color:#fff;padding:12px 18px;border-radius:8px;z-index:99999;font-size:14px";document.body.appendChild(loader);fetch("/admin/business_identities?"+param).then(function(r){return r.text()}).then(function(html){var doc=new DOMParser().parseFromString(html,"text/html"),rows=doc.querySelectorAll("table tbody tr");if(!rows.length){loader.remove();alert("找不到「"+q+"」的資料，請確認格式正確");return}var cells=rows[0].querySelectorAll("td"),editLink=rows[0].querySelector("a[href*=\'/edit\']");if(!editLink){loader.remove();alert("無法取得詳細頁連結");return}return fetch(editLink.getAttribute("href")).then(function(r){return r.text()}).then(function(editHtml){var ed=new DOMParser().parseFromString(editHtml,"text/html"),gv=function(id){var el=ed.getElementById(id);return el?el.value.trim():""},vat=gv("business_identity_business_vat_no")||cells[5].textContent.trim(),name=gv("business_identity_company_name")||cells[7].textContent.trim(),regA=gv("business_identity_business_full_address"),realA=gv("business_identity_real_business_full_address")||cells[9].textContent.trim(),pEl=ed.getElementById("business_identity_personal"),isP=pEl?pEl.checked:/^[A-Za-z]\\d{9}$/.test(vat),d={type:isP?"個人":"公司",name:name,id:vat,address:regA||realA};loader.remove();navigator.clipboard.writeText(JSON.stringify(d)).then(function(){var div=document.createElement("div");div.innerHTML="✅ 已複製！切換至本票產生器<br>點「📋 貼上 BZNK 資料」<br><small>"+d.name+"（"+d.id+"）<br>地址："+d.address+"</small>";div.style.cssText="position:fixed;top:16px;right:16px;background:#28a745;color:#fff;padding:16px 20px;border-radius:10px;z-index:99999;font-size:14px;line-height:1.7;box-shadow:0 4px 16px rgba(0,0,0,0.25);max-width:320px";document.body.appendChild(div);setTimeout(function(){div.remove()},6e3)}).catch(function(){prompt("請複製此資料：",JSON.stringify(d))})})}).catch(function(e){loader.remove();alert("搜尋失敗："+e.message)})})();';
+}
+
+async function importFromBznk(i) {
+  try {
+    const text = await navigator.clipboard.readText();
+    let data;
+    try { data = JSON.parse(text); } catch(e) {
+      throw new Error("剪貼板不是有效資料，請先在 bznk.com 點書籤工具複製資料後再試");
+    }
+    if (!data || (!data.name && !data.id)) {
+      throw new Error("剪貼板資料無效，請先在 bznk.com 企業身分認證頁點書籤工具");
+    }
+    if (data.type === "公司" || data.type === "個人") {
+      issuers[i].type = data.type;
+    }
+    const filled = [];
+    if (data.name)    { issuers[i].name    = data.name;    filled.push("名稱「" + data.name + "」"); }
+    if (data.id)      { issuers[i].id      = data.id;      filled.push("編號「" + data.id + "」"); }
+    if (data.address) { issuers[i].address = data.address; filled.push("地址"); }
+    if (data.rep)     { issuers[i].rep     = data.rep;     filled.push("負責人「" + data.rep + "」"); }
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned.bznk = true;
+    if (filled.length > 0) {
+      issuers[i].ocrStatus = "✓ 已從 BZNK 匯入：" + filled.join("、") + "　請核對是否正確";
+      issuers[i].ocrOk = true;
+    } else {
+      issuers[i].ocrStatus = "⚠️ BZNK 資料中沒有可填入的欄位";
+      issuers[i].ocrOk = false;
+    }
+    renderIssuers();
+    renderAuthIssuerList(); renderMortIssuerList(); renderDeclIssuerList();
+    renderPledgeIssuerList(); renderPromiseIssuerList(); updatePreview();
+  } catch(e) {
+    issuers[i].ocrStatus = "❌ BZNK 匯入失敗：" + (e.message || "未知錯誤");
+    issuers[i].ocrOk = false;
+    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
+    issuers[i].ocrScanned.bznk = false;
     renderIssuers();
   }
 }
