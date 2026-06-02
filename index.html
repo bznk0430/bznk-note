@@ -578,9 +578,14 @@ async function makePledgePDF(fontBytes, pledgeBytes, issList){
   function dt(text,x,yTop,maxW,sz=10){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});}
   issList.slice(0,2).forEach((iss,i)=>{
     const slot=slots[i];const isCo=iss.type==="公司";
-    const nameText=isCo&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;
-    dt(nameText,slot.xName,slot.yName,559-slot.xName);
-    if(isCo){dt(iss.id,slot.xId,slot.yId,559-slot.xId);}else{dt(iss.id,slot.xIdno,slot.yIdno,559-slot.xIdno);}
+    if(isCo&&iss.rep){
+      dt(iss.name,slot.xName,slot.yName,559-slot.xName);       // 公司名稱
+      dt(iss.rep,slot.xName,slot.yName+14,559-slot.xName);     // 負責人在下一行
+      dt(iss.id,slot.xId,slot.yId,559-slot.xId);               // 統一編號
+    }else{
+      dt(iss.name,slot.xName,slot.yName,559-slot.xName);
+      if(isCo){dt(iss.id,slot.xId,slot.yId,559-slot.xId);}else{dt(iss.id,slot.xIdno,slot.yIdno,559-slot.xIdno);}
+    }
   });
   return await pdfDoc.save();
 }
