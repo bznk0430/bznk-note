@@ -534,7 +534,9 @@ async function makeMortPDF(fontBytes, mortBytes, iss){
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
   function dt(text,x,yTop,maxW,sz=12){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});}
-  dt(iss.name,344.5,322.9,541-344.5);dt(iss.id,316.6,382.9,541-316.6);dt(iss.address,313.3,402.8,541-313.3);
+  dt(iss.name,344.5,322.9,541-344.5);
+  if(iss.type==="公司"&&iss.rep)dt(iss.rep,344.5,322.9+14,541-344.5);
+  dt(iss.id,316.6,382.9,541-316.6);dt(iss.address,313.3,402.8,541-313.3);
   return await pdfDoc.save();
 }
 
@@ -546,7 +548,9 @@ async function makeMortPDFHJ(fontBytes, mortBytes, iss){
   const page=pdfDoc.getPages()[0];
   const H=page.getHeight();
   function dt(text,x,yTop,maxW,sz=12){if(!text)return;let s=sz;while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}page.drawText(text,{x,y:H-(yTop+14)+1,size:s,font,color:rgb(0,0,0)});}
-  dt(iss.name,344.5,383.4,541-344.5);dt(iss.id,316.6,443.4,541-316.6);dt(iss.address,313.3,463.3,541-313.3);
+  dt(iss.name,344.5,383.4,541-344.5);
+  if(iss.type==="公司"&&iss.rep)dt(iss.rep,344.5,383.4+14,541-344.5);
+  dt(iss.id,316.6,443.4,541-316.6);dt(iss.address,313.3,463.3,541-313.3);
   return await pdfDoc.save();
 }
 
