@@ -580,7 +580,7 @@ async function makePledgePDF(fontBytes, pledgeBytes, issList){
     const slot=slots[i];const isCo=iss.type==="公司";
     if(isCo&&iss.rep){
       dt(iss.name,slot.xName,slot.yName,559-slot.xName);       // 公司名稱
-      dt(iss.rep,slot.xName,slot.yName+14,559-slot.xName);     // 負責人在下一行
+      dt(iss.rep,slot.xName+20,slot.yName+14,559-slot.xName-20);  // 負責人在下一行，往右2字
       dt(iss.id,slot.xId,slot.yId,559-slot.xId);               // 統一編號
     }else{
       dt(iss.name,slot.xName,slot.yName,559-slot.xName);
