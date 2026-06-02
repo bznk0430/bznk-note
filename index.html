@@ -73,29 +73,6 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
 <div class="wrap">
   <div><h1>本票產生器</h1><div class="sub">台灣聯合金融科技 · BZNK 平台</div></div>
 
-  <!-- API 金鑰設定（掃描圖片辨識用） -->
-  <div class="card" id="apiKeyCard">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleApiCard()">
-      <div class="card-title" style="margin:0">🔑 圖片辨識設定（Claude API）</div>
-      <span id="apiKeyStatus" style="font-size:12px;color:#aaa">未設定</span>
-    </div>
-    <div id="apiKeyBody" style="display:none;flex-direction:column;gap:8px;margin-top:8px">
-      <div style="font-size:12px;color:#666">
-        輸入 Anthropic API 金鑰，掃描身分證或變更登記表時自動辨識填入。<br>
-        遇到流量限制（rate limit）會自動等待並重試，不需手動操作。<br>
-        金鑰存在瀏覽器本地，不會傳送給任何第三方。
-      </div>
-      <div class="row" style="align-items:flex-end">
-        <div class="field" style="flex:1">
-          <label>API 金鑰</label>
-          <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." oninput="onApiKeyInput()">
-        </div>
-        <button onclick="saveApiKey()" style="padding:7px 16px;background:#1a1a18;color:#fff;border:none;border-radius:7px;font-size:13px;cursor:pointer;white-space:nowrap;height:34px">儲存</button>
-      </div>
-      <div id="apiKeyMsg" style="font-size:11px;color:#aaa"></div>
-    </div>
-  </div>
-
 
   <!-- BZNK 系統匯入工具 -->
   <div class="card" id="bznkCard">
@@ -268,8 +245,7 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
   <button class="gen-btn" id="genBtn" onclick="generate()">產生並下載文件</button>
 </div>
 
-<!-- PDF.js：讓公司變更登記表可以直接上傳 PDF，自動取第一頁轉圖後送 API -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -316,68 +292,19 @@ function ocrStatusHtml(iss) {
   return `<div class="ocr-status ${cls}">${iss.ocrStatus}</div>`;
 }
 
-// 顯示 OCR 原始辨識文字（可展開，方便除錯和回報問題）
-function ocrRawHtml(iss) {
-  if (!iss.ocrRawText) return "";
-  const escaped = iss.ocrRawText
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  return `<details style="margin-top:6px">
-    <summary style="font-size:10px;color:#99a;cursor:pointer;user-select:none">
-      🔍 原始辨識文字（點擊展開，辨識不正確時可截圖回報）
-    </summary>
-    <pre style="font-size:10px;color:#556;background:#f0f0ee;border-radius:5px;padding:8px;margin-top:4px;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto">${escaped}</pre>
-  </details>`;
-}
-
 function ocrSectionHtml(i, iss) {
-  if (iss.type === "公司") {
-    const done = iss.ocrScanned && iss.ocrScanned.company;
-    const bznkDone = iss.ocrScanned && iss.ocrScanned.bznk;
-    return `<div class="ocr-section type-co">
-      <div class="ocr-title">🏢 自動填入</div>
-      <div class="ocr-btns">
-        <button class="scan-lbl${bznkDone?" done":""}" onclick="importFromBznk(${i})" style="background:#fff;cursor:pointer;border:none">
-          ${bznkDone?"✓ 已從 BZNK 匯入":"📋 貼上 BZNK 資料"}
-        </button>
-        <label class="scan-lbl${done?" done":""}" for="ocr-co-${i}">
-          ${done?"✓ 已掃描":"📄 上傳變更登記表（API）"}
-          <input type="file" id="ocr-co-${i}" accept="image/*,.pdf,application/pdf" style="display:none" onchange="scanCompanyDoc(${i},this)">
-        </label>
-      </div>
-      <div class="ocr-hint">
-        📋 貼上：先在 bznk.com 點書籤工具複製，再按此按鈕填入（<b>登記地址</b>）。<br>
-        📄 掃描：上傳變更登記表，用 Claude API 辨識（需設定 API 金鑰）。
-      </div>
-      ${ocrStatusHtml(iss)}
-      ${ocrRawHtml(iss)}
-    </div>`;
-  } else {
-    const frontDone = iss.ocrScanned && iss.ocrScanned.front;
-    const backDone  = iss.ocrScanned && iss.ocrScanned.back;
-    const bznkDone  = iss.ocrScanned && iss.ocrScanned.bznk;
-    return `<div class="ocr-section type-pe">
-      <div class="ocr-title">🪪 自動填入</div>
-      <div class="ocr-btns">
-        <button class="scan-lbl${bznkDone?" done":""}" onclick="importFromBznk(${i})" style="background:#fff;cursor:pointer;border:none">
-          ${bznkDone?"✓ 已從 BZNK 匯入":"📋 貼上 BZNK 資料"}
-        </button>
-        <label class="scan-lbl${frontDone?" done":""}" for="ocr-f-${i}">
-          ${frontDone?"✓":"📷"} 正面（姓名＋身分證字號）
-          <input type="file" id="ocr-f-${i}" accept="image/*" style="display:none" onchange="scanIdCard(${i},'front',this)">
-        </label>
-        <label class="scan-lbl${backDone?" done":""}" for="ocr-b-${i}">
-          ${backDone?"✓":"📷"} 背面（戶籍地址）
-          <input type="file" id="ocr-b-${i}" accept="image/*" style="display:none" onchange="scanIdCard(${i},'back',this)">
-        </label>
-      </div>
-      <div class="ocr-hint">
-        背面請翻正後拍攝，避免倒置。辨識完成後請核對欄位是否正確。<br>
-        遇到流量上限會自動等待並重試，無需手動操作。
-      </div>
-      ${ocrStatusHtml(iss)}
-      ${ocrRawHtml(iss)}
-    </div>`;
-  }
+  const bznkDone = iss.ocrScanned && iss.ocrScanned.bznk;
+  const label = bznkDone ? "✓ 已從 BZNK 匯入" : "📋 貼上 BZNK 資料";
+  const cls = iss.type === "公司" ? "type-co" : "type-pe";
+  return `<div class="ocr-section ${cls}">
+    <div class="ocr-btns">
+      <button class="scan-lbl${bznkDone?" done":""}" onclick="importFromBznk(${i})" style="background:#fff;cursor:pointer;border:none">
+        ${label}
+      </button>
+    </div>
+    <div class="ocr-hint">先在 bznk.com 點書籤工具，再按此按鈕填入。</div>
+    ${ocrStatusHtml(iss)}
+  </div>`;
 }
 
 function renderIssuers(){
@@ -424,255 +351,6 @@ function renderIssuers(){
     wrap.appendChild(div);
   });
 }
-
-// ── PDF.js 初始化 ─────────────────────────────────────────────────────────────
-if (typeof pdfjsLib !== "undefined") {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-}
-
-// ── API 金鑰管理 ──────────────────────────────────────────────────────────────
-function getApiKey() { return localStorage.getItem("claude_api_key") || ""; }
-function saveApiKey() {
-  const key = document.getElementById("apiKeyInput").value.trim();
-  if (!key.startsWith("sk-ant-")) {
-    document.getElementById("apiKeyMsg").textContent = "⚠️ 格式不符，API 金鑰應以 sk-ant- 開頭";
-    return;
-  }
-  localStorage.setItem("claude_api_key", key);
-  document.getElementById("apiKeyMsg").textContent = "✓ 已儲存";
-  document.getElementById("apiKeyStatus").textContent = "已設定 ✓";
-  document.getElementById("apiKeyStatus").style.color = "#085041";
-  setTimeout(() => toggleApiCard(), 600);
-}
-function onApiKeyInput() { document.getElementById("apiKeyMsg").textContent = ""; }
-function toggleApiCard() {
-  const body = document.getElementById("apiKeyBody");
-  body.style.display = body.style.display === "none" ? "flex" : "none";
-}
-// 頁面載入時更新 API 金鑰狀態顯示
-(function initApiKeyDisplay() {
-  const key = getApiKey();
-  if (key) {
-    document.getElementById("apiKeyStatus").textContent = "已設定 ✓";
-    document.getElementById("apiKeyStatus").style.color = "#085041";
-    const inp = document.getElementById("apiKeyInput");
-    if (inp) inp.value = key;
-  }
-})();
-
-// ── 檔案轉 base64 dataURL（支援圖片 + PDF）──────────────────────────────────
-// PDF 檔：用 PDF.js 渲染第一頁到 canvas，轉為 PNG base64
-// 圖片檔：直接轉 dataURL
-
-async function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = e => resolve(e.target.result);
-    reader.onerror = () => reject(new Error("檔案讀取失敗"));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function fileToImageDataURL(file) {
-  if (file.type === "application/pdf") {
-    if (typeof pdfjsLib === "undefined") {
-      throw new Error("PDF.js 未載入，請確認網路連線後重新整理頁面");
-    }
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const page = await pdf.getPage(1);
-    const scale = 2.5;
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement("canvas");
-    canvas.width  = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    return canvas.toDataURL("image/png");
-  }
-  return fileToDataURL(file);
-}
-
-// ── Claude API 呼叫（含自動重試）────────────────────────────────────────────
-// 遇到 429 rate limit → 等待後自動重試，最多 3 次
-// onWait(secondsLeft) 回呼讓 UI 顯示倒數
-
-async function callClaudeVision(apiKey, dataUrl, promptText, onWait) {
-  const MAX_RETRIES = 3;
-  const mediaType = dataUrl.startsWith("data:image/png") ? "image/png"
-                  : dataUrl.startsWith("data:image/webp") ? "image/webp"
-                  : "image/jpeg";
-  const base64Data = dataUrl.split(",")[1];
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      // 等待時間：30 秒、60 秒、90 秒
-      const waitSec = 30 * attempt;
-      for (let s = waitSec; s > 0; s--) {
-        if (onWait) onWait(s, attempt, MAX_RETRIES);
-        await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 300,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
-            { type: "text", text: promptText }
-          ]
-        }]
-      })
-    });
-
-    if (resp.status === 429) {
-      if (attempt < MAX_RETRIES - 1) continue;   // 下一輪重試
-      throw new Error("多次嘗試後仍達到流量上限，請稍後再試");
-    }
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error((err.error && err.error.message) || `API 錯誤 ${resp.status}`);
-    }
-
-    const data = await resp.json();
-    const text = data.content[0].text;
-    // 嘗試解析 JSON（Claude 有時會在 JSON 前後加上說明文字）
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("API 回傳格式異常：" + text.slice(0, 100));
-    return JSON.parse(jsonMatch[0]);
-  }
-}
-
-// ── 通用：套用辨識結果 ────────────────────────────────────────────────────────
-function applyOcrResult(i, extracted, side) {
-  const filled = [];
-  if (extracted.name)    { issuers[i].name    = extracted.name;    filled.push("名稱「" + extracted.name + "」"); }
-  if (extracted.id)      { issuers[i].id      = extracted.id;      filled.push("編號「" + extracted.id + "」"); }
-  if (extracted.rep)     { issuers[i].rep     = extracted.rep;     filled.push("負責人「" + extracted.rep + "」"); }
-  if (extracted.address) { issuers[i].address = extracted.address; filled.push("地址"); }
-
-  if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
-  issuers[i].ocrScanned[side] = true;
-
-  if (filled.length > 0) {
-    issuers[i].ocrStatus = "✓ 已填入：" + filled.join("、") + "　請核對是否正確";
-    issuers[i].ocrOk = true;
-  } else {
-    issuers[i].ocrStatus = "⚠️ 圖片中未找到可辨識的欄位，請手動填寫";
-    issuers[i].ocrOk = false;
-  }
-  renderIssuers();
-  renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();
-  updatePreview();
-}
-
-// ── 個人身分證掃描 ────────────────────────────────────────────────────────────
-const PROMPT_ID_FRONT = `這是台灣身分證正面。請仔細辨識並以 JSON 格式回傳下列欄位：
-- name: 姓名（中文，例如「王小明」）
-- id_number: 身分證字號（格式：1個大寫英文字母 + 9個數字，例如「A123456789」）
-若某欄位看不清楚請設為 null。只回傳 JSON，不需其他說明。
-範例：{"name":"王小明","id_number":"A123456789"}`;
-
-const PROMPT_ID_BACK = `這是台灣身分證背面。請仔細辨識並以 JSON 格式回傳下列欄位：
-- address: 戶籍地址（完整中文地址）
-若看不清楚請設為 null。只回傳 JSON，不需其他說明。
-範例：{"address":"台北市中正區中山南路7號"}`;
-
-async function scanIdCard(i, side, inputEl) {
-  if (!inputEl.files || !inputEl.files[0]) return;
-  const file = inputEl.files[0];
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    issuers[i].ocrStatus = "❌ 請先在頁面上方設定 Claude API 金鑰";
-    issuers[i].ocrOk = false;
-    renderIssuers();
-    return;
-  }
-
-  issuers[i].ocrStatus = side === "front" ? "⏳ 辨識正面中…" : "⏳ 辨識背面中…";
-  issuers[i].ocrOk = false;
-  renderIssuers();
-
-  try {
-    const dataURL  = await fileToImageDataURL(file);
-    const prompt   = side === "front" ? PROMPT_ID_FRONT : PROMPT_ID_BACK;
-    const onWait   = (s, attempt, max) => {
-      issuers[i].ocrStatus = `⏳ 流量暫時達上限，${s} 秒後自動重試（第 ${attempt}/${max-1} 次）`;
-      renderIssuers();
-    };
-    const result   = await callClaudeVision(apiKey, dataURL, prompt, onWait);
-    const extracted = {};
-    if (result.name)       extracted.name    = result.name;
-    if (result.id_number)  extracted.id      = result.id_number;
-    if (result.address)    extracted.address = result.address;
-    applyOcrResult(i, extracted, side);
-  } catch(e) {
-    console.error("[scan error]", e);
-    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
-    issuers[i].ocrScanned[side] = false;
-    issuers[i].ocrStatus = "❌ 辨識失敗：" + (e.message || "未知錯誤");
-    issuers[i].ocrOk = false;
-    renderIssuers();
-  }
-}
-
-// ── 公司變更登記表掃描 ────────────────────────────────────────────────────────
-const PROMPT_COMPANY = `這是台灣公司變更登記表（股份有限公司或有限公司）。請仔細辨識第一頁並以 JSON 格式回傳：
-- company_name: 公司名稱（中文全名，含「股份有限公司」或「有限公司」）
-- unified_number: 公司統一編號（8位數字）
-- address: 公司所在地（完整中文地址）
-- representative: 代表公司負責人姓名（中文）
-若某欄位看不清楚請設為 null。只回傳 JSON，不需其他說明。
-範例：{"company_name":"喆泰機械股份有限公司","unified_number":"27832490","address":"台北市...","representative":"吳明憲"}`;
-
-async function scanCompanyDoc(i, inputEl) {
-  if (!inputEl.files || !inputEl.files[0]) return;
-  const file = inputEl.files[0];
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    issuers[i].ocrStatus = "❌ 請先在頁面上方設定 Claude API 金鑰";
-    issuers[i].ocrOk = false;
-    renderIssuers();
-    return;
-  }
-
-  issuers[i].ocrStatus = "⏳ 辨識變更登記表中…";
-  issuers[i].ocrOk = false;
-  renderIssuers();
-
-  try {
-    const dataURL = await fileToImageDataURL(file);
-    const onWait  = (s, attempt, max) => {
-      issuers[i].ocrStatus = `⏳ 流量暫時達上限，${s} 秒後自動重試（第 ${attempt}/${max-1} 次）`;
-      renderIssuers();
-    };
-    const result  = await callClaudeVision(apiKey, dataURL, PROMPT_COMPANY, onWait);
-    const extracted = {};
-    if (result.company_name)  extracted.name    = result.company_name;
-    if (result.unified_number) extracted.id     = result.unified_number;
-    if (result.address)        extracted.address = result.address;
-    if (result.representative) extracted.rep    = result.representative;
-    applyOcrResult(i, extracted, "company");
-  } catch(e) {
-    console.error("[scan error]", e);
-    if (!issuers[i].ocrScanned) issuers[i].ocrScanned = {};
-    issuers[i].ocrScanned.company = false;
-    issuers[i].ocrStatus = "❌ 辨識失敗：" + (e.message || "未知錯誤");
-    issuers[i].ocrOk = false;
-    renderIssuers();
-  }
-}
-
 
 // ── BZNK 系統匯入 ─────────────────────────────────────────────────────────────
 
