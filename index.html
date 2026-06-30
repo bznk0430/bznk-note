@@ -637,17 +637,17 @@ async function makeAntifraudPDF(fontBytes, afBytes, iss, amtChinese){
     while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
     page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
   }
-  // Page 1 - 立切結書人（即借款人）：blank x=170~295, y=85.9
+  // Page 1 - 立切結書人（即借款人）：label font 11.9pt → ends ~x=179; blank to x=295
   const nameText=iss.name||"";
-  dt(pg1,nameText,170,86,295-170);
-  // Page 1 - 第4點 借款金額 blank x=125.8~241.3, y=542
-  dt(pg1,amtChinese,126,542,241.3-126);
-  // Page 2 - 立切結書人（借款人）：blank starts after label x=159.2, up to ~x=295, y=282.8
-  dt(pg2,nameText,161,283,295-161);
-  // Page 2 - 身分證統一編號：blank x≈126~259.7, y=346.2
-  dt(pg2,iss.id,126,346,259.7-126);
-  // Page 2 - 戶籍地址：blank x≈92~276.2, y=372.6
-  dt(pg2,iss.address,92,373,276.2-92);
+  dt(pg1,nameText,182,84,295-182);
+  // Page 1 - 第4點 借款金額 blank x=125.8~241.3
+  dt(pg1,amtChinese,126,540,241.3-126);
+  // Page 2 - 立切結書人（借款人）：label ends x=159.2, blank to ~x=295
+  dt(pg2,nameText,161,281,295-161);
+  // Page 2 - 身分證統一編號：label ~x=124, blank to x=259.7
+  dt(pg2,iss.id,124,344,259.7-124);
+  // Page 2 - 戶籍地址：label ~x=91, blank to x=276.2
+  dt(pg2,iss.address,91,371,276.2-91);
   return await pdfDoc.save();
 }
 
