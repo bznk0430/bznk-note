@@ -238,6 +238,17 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
         <div style="font-size:11px;color:#aaa">每位發票人各產生一份（擔保物提供人、統編/身分證、地址）。</div>
       </div>
     </div>
+    <div class="attach-item" id="attach-antifraud">
+      <div class="attach-header" onclick="toggleAttach('antifraud')">
+        <input type="checkbox" id="chk-antifraud" onclick="event.stopPropagation();toggleAttach('antifraud')">
+        <span class="attach-label">📄 防範詐騙及無第三方代辦聲明切結書</span>
+      </div>
+      <div class="attach-body" id="body-antifraud">
+        <div style="font-size:12px;color:#666;margin-bottom:2px">選擇要帶入的發票人（每人各產生一份）：</div>
+        <div class="issuer-check-list" id="antifraud-issuer-list"></div>
+        <div style="font-size:11px;color:#aaa">帶入立切結書人姓名、借款金額（中文大寫，與本票相同）、身分證/統編、戶籍/登記地址。</div>
+      </div>
+    </div>
   </div>
 
   <div id="previewBar" class="preview-bar" style="display:none"></div>
@@ -275,10 +286,10 @@ let issuers=[];
 function addIssuer(){
   if(issuers.length>=5){showMsg("最多只能有5位發票人","err");return;}
   issuers.push({type:"個人",name:"",id:"",address:"",rep:"",ocrStatus:"",ocrOk:false,ocrScanned:{}});
-  renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();updatePreview();
+  renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();renderAntifraudIssuerList();updatePreview();
 }
 function removeIssuer(i){issuers.splice(i,1);renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();updatePreview();}
-function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();}updatePreview();}
+function setIssuer(i,k,v){issuers[i][k]=v;if(k==="type"){renderIssuers();renderAuthIssuerList();renderMortIssuerList();renderDeclIssuerList();renderPledgeIssuerList();renderPromiseIssuerList();renderAntifraudIssuerList();}updatePreview();}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
 function nd(iss){return iss.type==="公司"&&iss.rep?`${iss.name}  ${iss.rep}`:iss.name;}
 
@@ -409,7 +420,7 @@ async function importFromBznk(i) {
     }
     renderIssuers();
     renderAuthIssuerList(); renderMortIssuerList(); renderDeclIssuerList();
-    renderPledgeIssuerList(); renderPromiseIssuerList(); updatePreview();
+    renderPledgeIssuerList(); renderPromiseIssuerList(); renderAntifraudIssuerList(); updatePreview();
   } catch(e) {
     issuers[i].ocrStatus = "❌ BZNK 匯入失敗：" + (e.message || "未知錯誤");
     issuers[i].ocrOk = false;
@@ -444,6 +455,7 @@ function renderMortIssuerList(){renderIssuerCheckList("mort-issuer-list","mort-c
 function renderDeclIssuerList(){renderIssuerCheckList("decl-issuer-list","decl-chk",iss=>iss.type==="公司");}
 function renderPledgeIssuerList(){renderIssuerCheckList("pledge-issuer-list","pledge-chk",()=>true);}
 function renderPromiseIssuerList(){renderIssuerCheckList("promise-issuer-list","promise-chk",()=>true);}
+function renderAntifraudIssuerList(){renderIssuerCheckList("antifraud-issuer-list","antifraud-chk",()=>true);}
 
 function toggleAttach(id){
   const chk=document.getElementById(`chk-${id}`);
@@ -611,6 +623,34 @@ async function makePromisePDF(fontBytes, promiseBytes, issList, account, amtChin
   return await pdfDoc.save();
 }
 
+async function makeAntifraudPDF(fontBytes, afBytes, iss, amtChinese){
+  const {PDFDocument,rgb}=PDFLib;
+  const pdfDoc=await PDFDocument.load(afBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const font=await pdfDoc.embedFont(fontBytes);
+  const pg1=pdfDoc.getPages()[0];
+  const pg2=pdfDoc.getPages()[1];
+  const H=pg1.getHeight(); // 792pt
+  function dt(page,text,x,yTop,maxW,sz=10){
+    if(!text)return;
+    let s=sz;
+    while(s>=6){if(font.widthOfTextAtSize(text,s)<=maxW)break;s-=0.5;}
+    page.drawText(text,{x,y:H-(yTop+12)+1,size:s,font,color:rgb(0,0,0)});
+  }
+  // Page 1 - 立切結書人（即借款人）：blank x=170~295, y=85.9
+  const nameText=iss.name||"";
+  dt(pg1,nameText,170,86,295-170);
+  // Page 1 - 第4點 借款金額 blank x=125.8~241.3, y=542
+  dt(pg1,amtChinese,126,542,241.3-126);
+  // Page 2 - 立切結書人（借款人）：blank starts after label x=159.2, up to ~x=295, y=282.8
+  dt(pg2,nameText,161,283,295-161);
+  // Page 2 - 身分證統一編號：blank x≈126~259.7, y=346.2
+  dt(pg2,iss.id,126,346,259.7-126);
+  // Page 2 - 戶籍地址：blank x≈92~276.2, y=372.6
+  dt(pg2,iss.address,92,373,276.2-92);
+  return await pdfDoc.save();
+}
+
 // ── 主產生流程 ────────────────────────────────────────────────────────────────
 
 async function generate(){
@@ -631,7 +671,8 @@ async function generate(){
   const doDecl=document.getElementById("chk-decl").checked;
   const doPledge=document.getElementById("chk-pledge").checked;
   const doPromise=document.getElementById("chk-promise").checked;
-  if(!doNote&&!doAuth&&!doMort&&!doDecl&&!doPledge&&!doPromise){showMsg("請至少勾選一份文件","err");return;}
+  const doAntifraud=document.getElementById("chk-antifraud").checked;
+  if(!doNote&&!doAuth&&!doMort&&!doDecl&&!doPledge&&!doPromise&&!doAntifraud){showMsg("請至少勾選一份文件","err");return;}
   const btn=document.getElementById("genBtn");
   btn.disabled=true;btn.textContent="載入資源中…";showMsg("","");
   try{
@@ -643,6 +684,7 @@ async function generate(){
     if(doDecl)fetches.push(fetch("decl.pdf"));
     if(doPledge){const pv=document.getElementById("pledge-version")?.value||"tw";fetches.push(fetch(pv==="tw"?"pledge_tw.pdf":"pledge_hj.pdf"));}
     if(doPromise)fetches.push(fetch("promise.pdf"));
+    if(doAntifraud)fetches.push(fetch("antifraud.pdf"));
     const resps=await Promise.all(fetches);
     if(resps.some(r=>!r.ok))throw new Error("無法載入資源，請確認網路連線");
     const bufs=await Promise.all(resps.map(r=>r.arrayBuffer()));
@@ -655,6 +697,7 @@ async function generate(){
     const declBytes=doDecl?bufs[idx++]:null;
     const pledgeBytes=doPledge?bufs[idx++]:null;
     const promiseBytes=doPromise?bufs[idx++]:null;
+    const antifraudBytes=doAntifraud?bufs[idx++]:null;
     const zip=new JSZip();
     const namePrefix=issuers[0]?.name||"未命名";
     const amtStr=parseInt(amt).toLocaleString();
@@ -708,6 +751,15 @@ async function generate(){
       if(promiseSelected.length>4){showMsg("承諾書：最多只能選4位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
       const bytes=await makePromisePDF(fontBytes,promiseBytes,promiseSelected,promiseAccount,promiseAmt);
       zip.file(`承諾書_${promiseSelected.map(i=>i.name).join("_")}.pdf`,bytes);
+    }
+    if(doAntifraud){
+      const amtCN=toChinese(amt);
+      const afSelected=issuers.filter((iss,i)=>{const chk=document.getElementById(`antifraud-chk-${i}`);return chk&&chk.checked;});
+      if(afSelected.length===0){showMsg("防範詐騙切結書：請至少勾選一位發票人","err");btn.disabled=false;btn.textContent="產生並下載文件";return;}
+      for(const iss of afSelected){
+        const bytes=await makeAntifraudPDF(fontBytes,antifraudBytes,iss,amtCN);
+        zip.file(`防範詐騙聲明切結書_${iss.name}.pdf`,bytes);
+      }
     }
     const files=Object.keys(zip.files);
     if(files.length===1){
