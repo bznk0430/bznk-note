@@ -235,68 +235,79 @@ let issuers=[];
 function pasteBznkData(){
   navigator.clipboard.readText().then(text=>{
     if(!text){showMsg("剪貼簿是空的","err");return;}
-    const lines=text.trim().split("\n").map(l=>l.trim()).filter(l=>l);
-    // 格式：姓名 / 公司名稱（負責人）
-    //       （身分證字號）或（統一編號）
-    //       地址：xxx
-    // 或多筆連續
+    text=text.trim();
     const entries=[];
-    let cur={};
-    for(const line of lines){
-      // 地址行 → 結束一筆
-      if(line.startsWith("地址：")||line.startsWith("住址：")){
-        cur.address=line.replace(/^(地址|住址)：/,"");
-        entries.push({...cur});
-        cur={};
-        continue;
+
+    // 先嘗試 JSON 格式解析
+    try{
+      const json=JSON.parse(text);
+      const arr=Array.isArray(json)?json:[json];
+      for(const item of arr){
+        const id=item.id||item.business_vat_no||item.id_number||"";
+        const isCo=/^\d{8}$/.test(id);
+        entries.push({
+          type:item.type||(isCo?"公司":"個人"),
+          name:item.name||item.company_name||item.full_name||"",
+          id:id,
+          address:item.address||item.registered_address||item.household_address||"",
+          rep:item.rep||item.representative_name||item.owner_name||"",
+        });
       }
-      // 統編/身分證行（括號包圍）→ 判斷類型
-      const idMatch=line.match(/^[（(]([^）)]+)[）)]$/);
-      if(idMatch){
-        const val=idMatch[1];
-        cur.id=val;
-        if(/^\d{8}$/.test(val)){
-          cur.type="公司";
-        } else if(/^[A-Za-z]\d{9}$/i.test(val)){
-          cur.type="個人";
+    } catch(e){
+      // JSON 解析失敗，用文字格式解析
+      const lines=text.split("\n").map(l=>l.trim()).filter(l=>l);
+      let cur={};
+      for(const line of lines){
+        // 地址行 → 結束一筆
+        if(line.startsWith("地址：")||line.startsWith("住址：")){
+          cur.address=line.replace(/^(地址|住址)：/,"");
+          entries.push({...cur});
+          cur={};
+          continue;
         }
-        continue;
-      }
-      // 名稱行
-      if(line){
-        if(!cur.name){
-          // 格式1：「公司名稱　負責人：姓名」同一行（全形空格或多空格分隔）
-          const repMatch=line.match(/^(.+?)[\s　]+負責人[：:](.+)$/);
-          if(repMatch){
-            cur.name=repMatch[1].trim();
-            cur.rep=repMatch[2].trim();
-            cur.type="公司";
-          } else {
-            cur.name=line;
+        // 統編/身分證行（括號包圍）→ 判斷類型
+        const idMatch=line.match(/^[（(]([^）)]+)[）)]$/);
+        if(idMatch){
+          const val=idMatch[1];
+          cur.id=val;
+          if(/^\d{8}$/.test(val)){cur.type="公司";}
+          else if(/^[A-Za-z]\d{9}$/i.test(val)){cur.type="個人";}
+          continue;
+        }
+        // 名稱行
+        if(line){
+          if(!cur.name){
+            const repMatch=line.match(/^(.+?)[\s　]+負責人[：:](.+)$/);
+            if(repMatch){
+              cur.name=repMatch[1].trim();
+              cur.rep=repMatch[2].trim();
+              cur.type="公司";
+            } else {
+              cur.name=line;
+            }
+          } else if(cur.type==="公司"&&!cur.rep){
+            cur.rep=line;
           }
-        } else if(cur.type==="公司"&&!cur.rep){
-          // 格式2：公司名稱和負責人分兩行
-          cur.rep=line;
+          continue;
         }
-        continue;
       }
+      if(cur.name)entries.push({...cur});
     }
-    // 若最後一筆沒有地址也加入
-    if(cur.name)entries.push({...cur});
 
     if(entries.length===0){showMsg("無法解析剪貼簿內容，請確認格式正確","err");return;}
 
-    // 加入發票人清單
+    // 加入發票人清單：先填入空白欄位，再新增
     let added=0;
     for(const e of entries){
       if(issuers.length>=5)break;
-      issuers.push({
-        type:e.type||"個人",
-        name:e.name||"",
-        id:e.id||"",
-        address:e.address||"",
-        rep:e.rep||"",
-      });
+      const newIss={type:e.type||"個人",name:e.name||"",id:e.id||"",address:e.address||"",rep:e.rep||""};
+      // 找第一個完全空白的欄位填入
+      const emptyIdx=issuers.findIndex(iss=>!iss.name&&!iss.id&&!iss.address);
+      if(emptyIdx>-1){
+        issuers[emptyIdx]=newIss;
+      } else {
+        issuers.push(newIss);
+      }
       added++;
     }
     renderIssuers();
