@@ -67,7 +67,10 @@ h1{font-size:18px;font-weight:600;color:#1a1a18}
   <div class="card">
     <div class="card-title">發票人資料（最多5位）</div>
     <div id="issuers"></div>
-    <button class="add-btn" onclick="addIssuer()">＋ 新增發票人</button>
+    <div style="display:flex;gap:8px;margin-top:2px">
+      <button class="add-btn" onclick="addIssuer()" style="flex:1">＋ 新增發票人</button>
+      <button class="add-btn" onclick="pasteBznkData()" id="paste-btn" style="flex:1;border-color:rgba(0,120,80,0.3);color:#085041;background:#f0faf5">📋 貼上 BZNK 資料</button>
+    </div>
   </div>
 
   <!-- 附件 -->
@@ -228,6 +231,86 @@ function validateId(val,type){
 }
 
 let issuers=[];
+
+function pasteBznkData(){
+  navigator.clipboard.readText().then(text=>{
+    if(!text){showMsg("剪貼簿是空的","err");return;}
+    const lines=text.trim().split("\n").map(l=>l.trim()).filter(l=>l);
+    // 格式：姓名 / 公司名稱（負責人）
+    //       （身分證字號）或（統一編號）
+    //       地址：xxx
+    // 或多筆連續
+    const entries=[];
+    let cur={};
+    for(const line of lines){
+      // 地址行 → 結束一筆
+      if(line.startsWith("地址：")||line.startsWith("住址：")){
+        cur.address=line.replace(/^(地址|住址)：/,"");
+        entries.push({...cur});
+        cur={};
+        continue;
+      }
+      // 統編/身分證行（括號包圍）→ 判斷類型
+      const idMatch=line.match(/^[（(]([^）)]+)[）)]$/);
+      if(idMatch){
+        const val=idMatch[1];
+        cur.id=val;
+        if(/^\d{8}$/.test(val)){
+          cur.type="公司";
+        } else if(/^[A-Za-z]\d{9}$/i.test(val)){
+          cur.type="個人";
+        }
+        continue;
+      }
+      // 名稱行
+      if(line){
+        if(!cur.name){
+          // 格式1：「公司名稱　負責人：姓名」同一行（全形空格或多空格分隔）
+          const repMatch=line.match(/^(.+?)[\s　]+負責人[：:](.+)$/);
+          if(repMatch){
+            cur.name=repMatch[1].trim();
+            cur.rep=repMatch[2].trim();
+            cur.type="公司";
+          } else {
+            cur.name=line;
+          }
+        } else if(cur.type==="公司"&&!cur.rep){
+          // 格式2：公司名稱和負責人分兩行
+          cur.rep=line;
+        }
+        continue;
+      }
+    }
+    // 若最後一筆沒有地址也加入
+    if(cur.name)entries.push({...cur});
+
+    if(entries.length===0){showMsg("無法解析剪貼簿內容，請確認格式正確","err");return;}
+
+    // 加入發票人清單
+    let added=0;
+    for(const e of entries){
+      if(issuers.length>=5)break;
+      issuers.push({
+        type:e.type||"個人",
+        name:e.name||"",
+        id:e.id||"",
+        address:e.address||"",
+        rep:e.rep||"",
+      });
+      added++;
+    }
+    renderIssuers();
+    renderAuthIssuerList();
+    renderMortIssuerList();
+    renderDeclIssuerList();
+    renderPledgeIssuerList();
+    renderPromiseIssuerList();
+    updatePreview();
+    showMsg(`✓ 已貼上 ${added} 位發票人資料`,"ok");
+  }).catch(()=>{
+    showMsg("無法讀取剪貼簿，請確認已允許存取","err");
+  });
+}
 
 function addIssuer(){
   if(issuers.length>=5){showMsg("最多只能有5位發票人","err");return;}
@@ -398,11 +481,11 @@ async function makeNotePDF(fontBytes, blankBytes, amt, ver="new"){
   });
   dc(toChinese(amt),335.0,472.3,declAmtLine);
 
-  dt(nd(arr[0]),125,170.1,200); dt(arr[0].id,219,190.8,107); dt(arr[0].address,128,211.7,198);
-  dt(nd(arr[1]),125,252.9,148); dt(arr[1].id,219,273.6,107); dt(arr[1].address,128,294.5,198);
-  dt(nd(arr[2]),381,252.9,138); dt(arr[2].id,472,273.6,91);  dt(arr[2].address,384,294.5,181);
-  dt(nd(arr[3]),125,335.7,148); dt(arr[3].id,219,356.4,107); dt(arr[3].address,128,377.3,198);
-  dt(nd(arr[4]),381,335.7,138); dt(arr[4].id,472,356.4,91);  dt(arr[4].address,384,377.3,181);
+  dt(nd(arr[0]),125,190.8,200); dt(arr[0].id,219,211.7,107); dt(arr[0].address,128,232.3,198);
+  dt(nd(arr[1]),125,273.6,148); dt(arr[1].id,219,294.5,107); dt(arr[1].address,128,315.1,198);
+  dt(nd(arr[2]),381,273.6,138); dt(arr[2].id,472,294.5,91);  dt(arr[2].address,384,315.1,181);
+  dt(nd(arr[3]),125,356.4,148); dt(arr[3].id,219,377.3,107); dt(arr[3].address,128,397.9,198);
+  dt(nd(arr[4]),381,356.4,138); dt(arr[4].id,472,377.3,91);  dt(arr[4].address,384,397.9,181);
 
   dc(nd(arr[0]),122.9,364.1,declSig1y);
   dc(nd(arr[1]),125.5,276.7,declSig2y); dc(nd(arr[2]),397.9,549.4,declSig2y);
