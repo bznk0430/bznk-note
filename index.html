@@ -498,9 +498,20 @@ async function makeNotePDF(fontBytes, blankBytes, amt, ver="new"){
   dt(nd(arr[3]),125,356.4,148); dt(arr[3].id,219,377.3,107); dt(arr[3].address,128,397.9,198);
   dt(nd(arr[4]),381,356.4,138); dt(arr[4].id,472,377.3,91);  dt(arr[4].address,384,397.9,181);
 
-  dc(nd(arr[0]),122.9,364.1,declSig1y);
-  dc(nd(arr[1]),125.5,276.7,declSig2y); dc(nd(arr[2]),397.9,549.4,declSig2y);
-  dc(nd(arr[3]),125.5,276.7,declSig3y); dc(nd(arr[4]),397.9,549.4,declSig3y);
+  // 聲明書立書人：公司→拆兩行（公司名稱上行、負責人下行），個人→單行置中
+  function dcIssuer(iss,x0,x1,yBase){
+    if(iss.type==="公司"&&iss.rep){
+      // 公司名稱：底線上方 22pt
+      dc(iss.name, x0, x1, yBase-11);
+      // 負責人：底線上方 11pt
+      dc(iss.rep,  x0, x1, yBase);
+    } else {
+      dc(nd(iss), x0, x1, yBase);
+    }
+  }
+  dcIssuer(arr[0],122.9,364.1,declSig1y);
+  dcIssuer(arr[1],125.5,276.7,declSig2y); dcIssuer(arr[2],397.9,549.4,declSig2y);
+  dcIssuer(arr[3],125.5,276.7,declSig3y); dcIssuer(arr[4],397.9,549.4,declSig3y);
 
   return await pdfDoc.save();
 }
