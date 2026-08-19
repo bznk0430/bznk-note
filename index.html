@@ -499,12 +499,12 @@ async function makeNotePDF(fontBytes, blankBytes, amt, ver="new"){
   dt(nd(arr[4]),381,356.4,138); dt(arr[4].id,472,377.3,91);  dt(arr[4].address,384,397.9,181);
 
   // 聲明書立書人：公司→拆兩行（公司名稱上行、負責人下行），個人→單行置中
+  // dc 的 yBase 對應 H-yBase，所以 yBase 越小文字越高
+  // 兩行間距約 14pt：負責人在底線（yBase），公司名稱在 yBase-14
   function dcIssuer(iss,x0,x1,yBase){
     if(iss.type==="公司"&&iss.rep){
-      // 公司名稱：底線上方 22pt
-      dc(iss.name, x0, x1, yBase-11);
-      // 負責人：底線上方 11pt
-      dc(iss.rep,  x0, x1, yBase);
+      dc(iss.name, x0, x1, yBase-14);  // 公司名稱（上行）
+      dc(iss.rep,  x0, x1, yBase);     // 負責人（下行，貼近底線）
     } else {
       dc(nd(iss), x0, x1, yBase);
     }
